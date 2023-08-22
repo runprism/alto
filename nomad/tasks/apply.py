@@ -1,0 +1,35 @@
+"""
+Task called via the `nomad apply` CLI command
+"""
+
+
+# Imports
+import sys
+from nomad.agents.base import Agent
+from nomad.agents.meta import MetaAgent
+from nomad.agents import (  # noqa: F401
+    meta,
+    ec2,
+)
+from nomad.tasks.base import BaseTask
+
+
+# Class definition
+class ApplyTask(BaseTask):
+
+    def run(self):
+        """
+        Create the agent specified in the user's configuration file
+        """
+        self.check()
+        agent_type = self.conf["type"]
+        agent: Agent = MetaAgent.get_agent(agent_type)(
+            args=self.args,
+            nomad_wkdir=self.nomad_wkdir,
+            agent_name=self.name,
+            agent_conf=self.conf,
+            entrypoint=self.entrypoint,
+        )
+        returncode = agent.apply()
+        if returncode != 0:
+            sys.exit(1)

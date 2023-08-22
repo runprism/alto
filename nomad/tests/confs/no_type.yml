@@ -1,0 +1,8 @@
+my_cloud_agent:
+  instance_type: t2.micro
+  requirements: requirements.txt
+  entrypoint:
+    type: function
+    cmd: <script_name>.<function_name>
+    kwargs:
+      kwarg1: value1

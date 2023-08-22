@@ -1,0 +1,15 @@
+my_cloud_agent:
+  type: ec2
+  instance_type: t2.micro
+  requirements: requirements.txt
+  entrypoint:
+    type: function
+    src: scripts
+    cmd: test_fn.print_value
+    kwargs:
+      value: "hello world"
+  additional_paths:
+    - "{{ Path(__file__).parent }}"
+  env:
+    ENV_VAR_1: VALUE1
+    ENV_VAR_2: VALUE2

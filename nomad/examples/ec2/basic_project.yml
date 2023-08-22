@@ -1,0 +1,8 @@
+my_cloud_agent:
+  type: ec2
+  instance_type: t2.micro
+  requirements: requirements.txt
+  entrypoint:
+    type: project
+    src: app/
+    cmd: python <script_name>.py

@@ -1,0 +1,9 @@
+my_cloud_agent:
+  type: ec2
+  instance_type: t2.micro
+  requirements: requirements.txt
+  entrypoint:
+    type: script
+    cmd: python <script_name>.py
+  env:
+    ENV_VAR_1: ENV_VALUE_1
