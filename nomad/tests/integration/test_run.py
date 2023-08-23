@@ -44,7 +44,7 @@ def _apply_run_integration_test(
     assert result.exit_code == 0
 
     # Delete file in S3, if it exists
-    file_s3_uri = f"s3://nomad/tests/{fname_name}.txt"
+    file_s3_uri = f"s3://nomad-dev-tests/tests/{fname_name}.txt"
     delete_s3_file(file_s3_uri)
 
     # Run

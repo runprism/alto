@@ -17,7 +17,7 @@ from nomad.tests.integration.utils import (
 
 # Constants
 TEST_DIR = Path(__file__).parent
-TEST_FUNCTION = TEST_DIR / 'test_function'
+TEST_FUNCTION = TEST_DIR / 'function'
 TEST_ERROR = TEST_DIR / 'test_apply_error'
 
 

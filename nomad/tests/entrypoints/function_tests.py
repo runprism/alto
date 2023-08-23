@@ -8,7 +8,7 @@ Tess configuration for the Function child class
 BAD_COMMAND_FORMAT = {
     "type": "function",
     "src": "scripts",
-    "cmd": "scripts.test_fn.hello_world"
+    "cmd": "scripts.main.hello_world"
 }
 
 
@@ -18,7 +18,7 @@ BAD_COMMAND_FORMAT = {
 BAD_KWARGS = {
     "type": "function",
     "src": "scripts",
-    "cmd": "test_fn.hello_world",
+    "cmd": "main.hello_world",
     "kwargs": [
         "VALUE1"
     ]

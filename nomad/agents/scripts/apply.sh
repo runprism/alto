@@ -79,7 +79,7 @@ echo "Updating remote project and file paths"
 
 # Copy project directory and other copy paths into the EC2 instance
 ssh -i ${pem_path} ${user}@${public_dns_name} "sudo mkdir -p .${project_dir}; sudo chmod 777 -R .${project_dir}"
-scp -r -i ${pem_path} ${project_dir} ${user}@${public_dns_name}:.${project_parent_dir}
+scp -r -i ${pem_path} ${project_dir} ${user}@${public_dns_name}:.${project_parent_dir} 2> scp.log
 echo "Copied project directory into instance"
 
 IFS=',' read -ra array <<< "${copy_paths}"

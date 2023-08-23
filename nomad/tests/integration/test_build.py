@@ -31,7 +31,7 @@ def _build_integration_test(
     runner = CliRunner()
 
     # Delete file in S3, if it exists
-    file_s3_uri = f"s3://nomad/tests/{fname_name}.txt"
+    file_s3_uri = f"s3://nomad-dev-tests/tests/{fname_name}.txt"
     delete_s3_file(file_s3_uri)
 
     # Invoke the `build` command
