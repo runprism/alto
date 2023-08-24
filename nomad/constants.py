@@ -27,7 +27,8 @@ SUPPORTED_AGENTS = [
 SUPPORTED_ENTRYPOINTS = [
     "script",
     "function",
-    "project"
+    "project",
+    "jupyter",
 ]
 
 
