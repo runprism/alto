@@ -1,0 +1,11 @@
+my_cloud_agent:
+  type: ec2
+  instance_type: t2.micro
+  requirements: requirements.txt
+  entrypoint:
+    type: jupyter
+    src: scripts
+    cmd: papermill nomad_nb.ipynb nomad_nb_exec.ipynb
+  env:
+    ENV_VAR_1: VALUE1
+    ENV_VAR_2: VALUE2

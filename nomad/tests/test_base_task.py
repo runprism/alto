@@ -11,7 +11,7 @@ import pytest
 
 # Constants
 TEST_DIR = Path(__file__).parent
-CONFs = TEST_DIR / 'CONFs'
+CONFs = TEST_DIR / 'confs'
 
 
 # Util functions
@@ -152,3 +152,30 @@ def test_bad_entrypoint():
         task.check_conf(task.conf, task.name)
     expected_msg = "`entrypoint` is not the correct type...should be a <class 'dict'>"
     assert expected_msg == str(cm.value)
+
+
+def test_jupyter_entrypoint():
+    """
+    Test a normal Jupyter entrypoint
+    """
+    task = _create_task(path=(CONFs / 'normal_conf_jupyter.yml'))
+    task.check()
+    expected_conf = {
+        "type": "ec2",
+        "instance_type": "t2.micro",
+        "requirements": "requirements.txt",
+        "entrypoint": {
+            "type": "jupyter",
+            "src": "scripts",
+            "cmd": "papermill nomad_nb.ipynb nomad_nb_exec.ipynb",
+        },
+        "env": {
+            "ENV_VAR_1": "VALUE1",
+            "ENV_VAR_2": "VALUE2",
+        },
+        "post_build_cmds": [
+            "pip install ipython ipykernel",
+            'ipython kernel install --name "python3" --user'
+        ]
+    }
+    assert expected_conf == task.conf

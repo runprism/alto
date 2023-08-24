@@ -4,4 +4,5 @@ my_cloud_agent:
   requirements: requirements.txt
   entrypoint:
     type: jupyter
-    cmd: <notebook_name>.ipynb
+    kernel: python3
+    cmd: papermill <notebook_path>.ipynb <output_path>.ipynb
