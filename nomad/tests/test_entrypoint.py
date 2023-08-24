@@ -18,7 +18,8 @@ from nomad.entrypoints import (  # noqa
 )
 from nomad.tests.entrypoints import (  # noqa
     base_tests,
-    function_tests
+    function_tests,
+    jupyter_tests,
 )
 
 
@@ -125,4 +126,61 @@ def test_function_bad_kwargs():
     with pytest.raises(ValueError) as cm:
         _ = FunctionEntrypoint(entrypoint_conf=conf, nomad_wkdir=ENTRYPOINT_WKDIR)
     expected_msg = "`kwargs` is not the correct type...should be a <class 'dict'>"
+    assert str(cm.value) == expected_msg
+
+
+def test_jupyter_normal_entrypoint():
+    """
+    A normal Jupyter entrypoint loads as expected
+    """
+    conf = jupyter_tests.NORMAL
+
+    # We check the entrypoint configuration when creating the instances itself.
+    entrypoint = MetaEntrypoint.get_entrypoint(name=conf["type"])(
+        entrypoint_conf=conf,
+        nomad_wkdir=ENTRYPOINT_WKDIR
+    )
+    assert isinstance(entrypoint, JupyterEntrypoint)
+
+    # Check entrypoint attributes
+    assert entrypoint.src == "scripts"
+    assert entrypoint.cmd == "papermill nomad_nb.ipynb nomad_exec_nb.ipynb"
+    assert entrypoint.kernel == "python3"
+    assert entrypoint.notebook_path == "nomad_nb.ipynb"
+    assert entrypoint.output_path == "nomad_exec_nb.ipynb"
+
+
+def test_jupyter_no_kernel():
+    """
+    A Jupyter entrypoint without a kernel loads normally. The kernel defaults to
+    `python3`
+    """
+    conf = jupyter_tests.NO_KERNEL
+
+    # We check the entrypoint configuration when creating the instances itself.
+    entrypoint = MetaEntrypoint.get_entrypoint(name=conf["type"])(
+        entrypoint_conf=conf,
+        nomad_wkdir=ENTRYPOINT_WKDIR
+    )
+    assert isinstance(entrypoint, JupyterEntrypoint)
+
+    # Check entrypoint attributes
+    assert entrypoint.src == "scripts"
+    assert entrypoint.cmd == "papermill nomad_nb.ipynb nomad_exec_nb.ipynb"
+    assert entrypoint.notebook_path == "nomad_nb.ipynb"
+    assert entrypoint.output_path == "nomad_exec_nb.ipynb"
+
+    # Kernel
+    assert hasattr(entrypoint, "kernel")
+    assert entrypoint.kernel == "python3"
+
+
+def test_jupyter_bad_command():
+    """
+    A Jupyter entrypoint with a bad command (in this case, no papermill) throws an error
+    """
+    conf = jupyter_tests.BAD_COMMAND_FORMAT
+    with pytest.raises(ValueError) as cm:
+        _ = JupyterEntrypoint(entrypoint_conf=conf, nomad_wkdir=ENTRYPOINT_WKDIR)
+    expected_msg = "`cmd` value not properly formatted...should be `papermill <notebook_path> <output_path>`"  # noqa: E501
     assert str(cm.value) == expected_msg
