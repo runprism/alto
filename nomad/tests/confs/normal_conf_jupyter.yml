@@ -4,6 +4,7 @@ my_cloud_agent:
   requirements: requirements.txt
   entrypoint:
     type: jupyter
+    kernel: python3
     src: scripts
     cmd: papermill nomad_nb.ipynb nomad_nb_exec.ipynb
   env:

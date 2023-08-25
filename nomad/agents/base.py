@@ -86,3 +86,35 @@ class Agent(metaclass=MetaAgent):
         if not absolute_requirements_path.is_file():
             raise ValueError(f"no file found at {absolute_requirements_path}")
         return absolute_requirements_path
+
+    def parse_post_build_cmds(self, agent_conf: Dict[str, Any]):
+        """
+        Get the post-build commands for the cloud environment
+
+        args:
+            agent_conf: agent configuration as dictionary
+        returns:
+            post-build cmds as a list. If no post-build commands are specified, then
+            return an empty list.
+        """
+        # Not all Nomad projects will have a `requirements` file.
+        if "post_build_cmds" not in agent_conf.keys():
+            return []
+        post_build_cmds = agent_conf["post_build_cmds"]
+        return post_build_cmds
+
+    def parse_download_files(self, agent_conf: Dict[str, Any]):
+        """
+        Get the files to download from the cloud environment
+
+        args:
+            agent_conf: agent configuration as dictionary
+        returns:
+            files to donwload as a list. If no download files are specified, then
+            return an empty list.
+        """
+        # Not all Nomad projects will have a `requirements` file.
+        if "download_files" not in agent_conf.keys():
+            return []
+        download_files = agent_conf["download_files"]
+        return download_files

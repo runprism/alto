@@ -166,6 +166,7 @@ def test_jupyter_entrypoint():
         "requirements": "requirements.txt",
         "entrypoint": {
             "type": "jupyter",
+            "kernel": "python3",
             "src": "scripts",
             "cmd": "papermill nomad_nb.ipynb nomad_nb_exec.ipynb",
         },
@@ -176,6 +177,9 @@ def test_jupyter_entrypoint():
         "post_build_cmds": [
             "pip install ipython ipykernel",
             'ipython kernel install --name "python3" --user'
+        ],
+        "download_files": [
+            "scripts/nomad_nb_exec.ipynb",
         ]
     }
     assert expected_conf == task.conf

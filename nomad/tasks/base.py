@@ -72,6 +72,7 @@ class BaseTask:
         self.confirm_entrypoint_conf_structure(self.conf)
         self.confirm_additional_paths_conf_structure(self.conf)
         self.conf = self.define_post_build_cmds(self.conf)
+        self.conf = self.define_download_files(self.conf)
 
     def parse_conf_fpath(self,
         conf_fpath: Path
@@ -112,6 +113,7 @@ class BaseTask:
             ConfigurationKey("env", dict),
             ConfigurationKey("requirements", str),
             ConfigurationKey("post_build_cmds", list),
+            ConfigurationKey("download_files", list),
         ]
         for _k in optional_keys:
             _check_optional_key_in_conf(_k, conf)
@@ -198,15 +200,18 @@ class BaseTask:
 
     def define_post_build_cmds(self,
         conf: Dict[str, Any]
-    ) -> None:
+    ) -> Dict[str, Any]:
         """
         Define actions to be performed before the code is executed. These could be
-        anything, but they must be specified as a list of bash commands
+        anything, but they must be specified as a list of bash commands.
+
+        For certain entrypoints, we use this function to augment the `post_build_cmds`
+        that the user specifies, if any.
 
         args:
             conf: agent configuration
         returns:
-            None; this function updates the confg
+            configuration with augmented `post_build_cmds`
         """
         # We run this function *after* checking the agent configuration and entrypoint
         # configuration.
@@ -235,4 +240,47 @@ class BaseTask:
         # Define class attribute
         if post_build_cmds != []:
             conf["post_build_cmds"] = post_build_cmds
+        return conf
+
+    def define_download_files(self,
+        conf: Dict[str, Any]
+    ) -> None:
+        """
+        Define the files to be downloaded from the agent after the agent has
+        successfully run. This will be specified within the `download_files` key in the
+        agent configuration.
+
+        For certain entrypoints, we use this function to augment the `download_files`
+        that the user specifies, if any.
+
+        args:
+            conf: agent configuration
+        returns:
+            configuration with augmented `download_files`
+        """
+        # We run this function *after* checking the agent configuration and entrypoint
+        # configuration.
+        download_files = []
+        if "download_files" in conf.keys():
+            download_files = conf["download_files"]
+
+        # At this point, we should know what our entrypoint type is
+        if not hasattr(self, "entrypoint"):
+            raise ValueError("entrypoint attribute not defined!")
+        ep: BaseEntrypoint = self.entrypoint
+        ep_type = ep.entrypoint_conf["type"]
+
+        # For `jupyter` entrypoints, we need to install the ipython kernel. Since we're
+        # running these actions after the requirements are installed, then the
+        if ep_type == "jupyter":
+
+            # We should donwload the executed notebook. The path of the executed
+            # notebook will be relative to `src`.
+            output_path = Path(ep.src) / ep.output_path
+            if str(output_path) not in download_files:
+                download_files.append(str(output_path))
+
+        # Define class attribute
+        if download_files != []:
+            conf["download_files"] = download_files
         return conf
