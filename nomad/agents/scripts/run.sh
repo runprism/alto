@@ -1,6 +1,6 @@
 #!/bin/bash
 
-while getopts p:u:n:d:c: flag
+while getopts p:u:n:d:c:f: flag
 do
 	case "${flag}" in
 		p) pem_path=${OPTARG};;
@@ -8,6 +8,7 @@ do
 		n) public_dns_name=${OPTARG};;
 		d) project_dir=${OPTARG};;
 		c) command=${OPTARG};;
+		f) download_files+=("$OPTARG");;
 	esac
 done
 
@@ -32,3 +33,11 @@ exit_code=$?
 if [ $exit_code -eq 1 ]; then
 	exit 1
 fi
+
+# Now, download the files
+for val in "${download_files[@]}"; do
+	scp -i ${pem_path} ${user}@${public_dns_name}:../../${project_dir}/${val} ${project_dir}/${val} 2> scp.log
+	if [ $exit_code -eq 1 ]; then
+		exit 1
+	fi
+done

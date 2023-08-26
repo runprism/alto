@@ -1060,6 +1060,13 @@ class Ec2(Agent):
         # Full command
         full_cmd = self.entrypoint.build_command()
 
+        # Download files
+        download_files = self.agent_conf["download_files"]
+        download_files_cmd = []
+        for df in download_files:
+            download_files_cmd.append("-f")
+            download_files_cmd.append(df)
+
         # Logging styling
         if self.instance_name is None or self.instance_id is None:
             logger.info(
@@ -1079,7 +1086,7 @@ class Ec2(Agent):
             '-n', self.public_dns_name,
             '-d', str(self.nomad_wkdir),
             '-c', full_cmd,
-        ]
+        ] + download_files_cmd
         out, _, returncode = self.stream_logs(cmd, nomad.ui.AGENT_WHICH_RUN, "run")
 
         # Log anything from stdout that was printed in the project
