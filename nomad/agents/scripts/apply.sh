@@ -1,6 +1,6 @@
 #!/bin/bash
 
-while getopts r:p:u:n:d:c:e: flag
+while getopts r:p:u:n:d:c:e:x: flag
 do
 	case "${flag}" in
 		r) requirements=${OPTARG};;
@@ -10,6 +10,7 @@ do
 		d) project_dir=${OPTARG};;
 		c) copy_paths=${OPTARG};;
 		e) env=${OPTARG};;
+		x) post_build_cmds+=("$OPTARG");;
 	esac
 done
 
@@ -29,6 +30,13 @@ done
 # get project name and path as it would appear in cluster
 project_name="$(basename -- ${project_dir})"
 project_parent_dir="$(dirname ${project_dir})"
+
+# convert the post-build commands to a string
+NEWLINE=$'\n'
+post_build_cmds_str=""
+for val in "${post_build_cmds[@]}"; do
+    post_build_cmds_str+="$val${NEWLINE}"
+done
 
 # Compare local requirements to remote requirements. If the two are identical, then do
 # not re-install the requirements. If they aren't, then create a new virtual environment
@@ -53,6 +61,7 @@ python3 -m venv ~/.venv/${project_name}
 source ~/.venv/${project_name}/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
+${post_build_cmds_str}
 EOF
 		exit_code=$?
 		if [ $exit_code -eq 1 ]; then
@@ -63,10 +72,13 @@ else
 	# Create a virtual environment, but just don't install anything
 	ssh -i ${pem_path} ${user}@${public_dns_name} <<EOF
 	if [ -d ~/.venv/${project_name} ]; then
-		sudo rm -rf ~/.venv/${project_name}
+		true
+	else
+		python3 -m venv ~/.venv/${project_name}
+		source ~/.venv/${project_name}/bin/activate
+		pip install --upgrade pip
+		${post_build_cmds_str}
 	fi
-	python3 -m venv ~/.venv/${project_name}
-	source ~/.venv/${project_name}/bin/activate
 EOF
 	exit_code=$?
 	if [ $exit_code -eq 1 ]; then

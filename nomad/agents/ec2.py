@@ -976,6 +976,17 @@ class Ec2(Agent):
 
         # requirements.txt path
         requirements_txt_path = Path(self.parse_requirements(self.agent_conf))
+        if str(requirements_txt_path) == ".":
+            requirements_txt_str = ""
+        else:
+            requirements_txt_str = str(requirements_txt_path)
+
+        # Post-build commands
+        procesed_post_build_commands = []
+        raw_post_build_commands = self.parse_post_build_cmds(self.agent_conf)
+        for pbc in raw_post_build_commands:
+            procesed_post_build_commands.append("-x")
+            procesed_post_build_commands.append(f'{pbc}')
 
         # Environment dictionary
         env_dict = self.parse_environment_variables(self.agent_conf)
@@ -1008,14 +1019,14 @@ class Ec2(Agent):
             # Build the shell command
             cmd = [
                 '/bin/sh', self.AGENT_APPLY_SCRIPT,
-                '-r', str(requirements_txt_path),
+                '-r', str(requirements_txt_str),
                 '-p', str(pem_key_path),
                 '-u', user,
                 '-n', public_dns_name,
                 '-d', str(project_dir),
                 '-c', all_local_paths_cli,
                 '-e', env_cli,
-            ]
+            ] + procesed_post_build_commands
 
             # Open a subprocess and stream the logs
             _, err, returncode = self.stream_logs(

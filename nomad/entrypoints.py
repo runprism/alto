@@ -4,6 +4,7 @@ configuration file.
 """
 
 # Imports
+import json
 from pathlib import Path
 import re
 from typing import Any, Dict
@@ -162,6 +163,10 @@ class Jupyter(BaseEntrypoint):
     a user-specified cloud resource.
     """
 
+    def __init__(self, entrypoint_conf: Dict[str, Any], nomad_wkdir: Path):
+        super().__init__(entrypoint_conf, nomad_wkdir)
+        self.modify_metadata()
+
     def check_conf(self):
         """
         Confirm that the entrypoint configuration is acceptable
@@ -206,6 +211,48 @@ class Jupyter(BaseEntrypoint):
             raise ValueError(
                 f"could not find output directory {str(parent_dir_output_path)}"
             )
+
+    def modify_metadata(self):
+        """
+        Ensure that notebook's metadata is populated
+        """
+        # We modify the notebooks metadata *after* we confirm that it exists in the
+        # `check_conf()` method.
+        full_nb_path = Path(self.nomad_wkdir / self.src / self.notebook_path)
+        with open(full_nb_path, 'r') as f:
+            nb_json = json.loads(f.read())
+        if nb_json.get("metadata", {}) == {}:
+            metadata = nb_json["metadata"]
+            if "kernelspec" in metadata.keys():
+                kernelspec = metadata["kernelspec"]
+
+                # The kernelspec must have a `display_name`, a `language`, and a `name`.
+                # If it doesn't, then raise an error.
+                for _key in ["display_name", "language", "name"]:
+                    if _key not in kernelspec.keys():
+                        raise ValueError(
+                            f"`{_key}` not found within notebook metadata's `kernelspec`"  # noqa: E501
+                        )
+
+                # Now, the name must match `kernel`
+                if self.kernel != kernelspec["name"]:
+                    raise ValueError(
+                        "`kernel` in kernelspec does not match `kernel` from entrypoint configuration"  # noqa: E501
+                    )
+        else:
+            display_name = self.kernel[0].upper() + self.kernel[1:]
+            nb_json["metadata"] = {
+                "kernelspec": {
+                    "display_name": display_name,
+                    "language": "python",
+                    "name": self.kernel
+                },
+            }
+
+            # Write
+            json_object = json.dumps(nb_json)
+            with open(full_nb_path, 'w') as f:
+                f.write(json_object)
 
     def build_command(self):
         # ipython kernel install --name "{self.kernel}" --user &&

@@ -231,7 +231,7 @@ class BaseTask:
             # Technically, the user's requirements should install ipython and the
             # ipykernel, but we'll do it again here anyways.
             for cmd in [
-                "pip install ipython ipykernel",
+                "pip install ipython ipykernel papermill",
                 f'ipython kernel install --name "{ep.kernel}" --user'
             ]:
                 if cmd not in post_build_cmds:
