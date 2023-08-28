@@ -21,6 +21,7 @@ TEST_FUNCTION = TEST_DIR / 'function'
 TEST_JUPYTER = TEST_DIR / 'jupyter'
 TEST_PROJECT = TEST_DIR / 'project'
 TEST_SCRIPT = TEST_DIR / 'script'
+TEST_DOWNLOAD_FILES = TEST_DIR / 'download_files'
 
 
 # Tests
@@ -130,6 +131,80 @@ def test_project():
     runner = CliRunner()
     result = runner.invoke(cli, ['run', '-f', 'nomad.yml'])
     assert result.exit_code == 0
+    resources = _resources_exist(resource_name)
+    assert not resources["key_pair"]
+    assert not resources["security_group"]
+    assert not resources["instance"]
+
+
+def test_jupyter():
+    """
+    Test that a Jupyter notebook executes and that we download the executed notebook
+    after a successful run.
+    """
+    os.chdir(TEST_JUPYTER)
+    runner = CliRunner()
+
+    # Invoke the `apply` command
+    result = runner.invoke(cli, ["apply", "-f", "nomad.yml"])
+
+    # Check if EC2 resources exist
+    resource_name = "my_cloud_agent"
+    resources = _resources_exist(resource_name)
+    assert resources["key_pair"]
+    assert resources["security_group"]
+    assert resources["instance"]
+    assert result.exit_code == 0
+
+    # Run
+    result = runner.invoke(cli, ["run", "-f", "nomad.yml"])
+    assert result.exit_code == 0
+
+    # We should see the executed notebook in our folder
+    exec_nb_path = Path(TEST_JUPYTER / 'nomad_nb_exec.ipynb')
+    assert exec_nb_path.is_file()
+    os.unlink(exec_nb_path)
+
+    # The resources should be deleted on a successful run
+    resources = _resources_exist(resource_name)
+    assert not resources["key_pair"]
+    assert not resources["security_group"]
+    assert not resources["instance"]
+
+
+def test_download_files():
+    """
+    Files in `download_files` are successfully downloaded upon a project's successful
+    execution.
+    """
+    os.chdir(TEST_DOWNLOAD_FILES)
+    runner = CliRunner()
+
+    # Invoke the `apply` command
+    result = runner.invoke(cli, ["apply", "-f", "nomad.yml"])
+
+    # Check if EC2 resources exist
+    resource_name = "my_cloud_agent"
+    resources = _resources_exist(resource_name)
+    assert resources["key_pair"]
+    assert resources["security_group"]
+    assert resources["instance"]
+    assert result.exit_code == 0
+
+    # Run
+    result = runner.invoke(cli, ["run", "-f", "nomad.yml"])
+    assert result.exit_code == 0
+
+    # We should see the executed notebook in our folder
+    downloaded_file = Path(TEST_DOWNLOAD_FILES / 'download_files.txt')
+    assert downloaded_file.is_file()
+    with open(downloaded_file, 'r') as f:
+        downloaded_file_txt = f.read()
+    expected_txt = "Hello world from our `test_download_files` test case!"
+    assert downloaded_file_txt == expected_txt
+    os.unlink(downloaded_file)
+
+    # The resources should be deleted on a successful run
     resources = _resources_exist(resource_name)
     assert not resources["key_pair"]
     assert not resources["security_group"]

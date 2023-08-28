@@ -1,0 +1,8 @@
+my_cloud_agent:
+  type: ec2
+  instance_type: t2.micro
+  entrypoint:
+    type: script
+    cmd: python main.py --output-name test_download_files
+  download_files:
+    - download_files.txt
