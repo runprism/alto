@@ -16,6 +16,7 @@ EC2_EXAMPLES = [
     EC2_EXAMPLES_DIR / 'basic_script.yml',
     EC2_EXAMPLES_DIR / 'env_vars.yml',
     EC2_EXAMPLES_DIR / 'basic_jupyter.yml',
+    EC2_EXAMPLES_DIR / 'download_files.yml',
 ]
 
 
@@ -116,9 +117,23 @@ def test_yml_parser():
         }
     }
 
+    expected_conf_6 = {
+        "my_cloud_agent": {
+            "type": "ec2",
+            "instance_type": "t2.micro",
+            "requirements": "requirements.txt",
+            "entrypoint": {
+                "type": "script",
+                "cmd": "python <script name>.py --dim1 DIM1 --dim2 DIM2"
+            },
+            "download_files": ["file1.txt", "file2.txt"]
+        }
+    }
+
     assert confs[0] == expected_conf_0
     assert confs[1] == expected_conf_1
     assert confs[2] == expected_conf_2
     assert confs[3] == expected_conf_3
     assert confs[4] == expected_conf_4
     assert confs[5] == expected_conf_5
+    assert confs[6] == expected_conf_6
