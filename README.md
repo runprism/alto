@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://github.com/runprism/nomad/raw/main/.github/logo.png" alt="Nomad logo" height="100"/>
+  <img src="https://github.com/runprism/nomad/raw/main/.github/logo.png" alt="Nomad logo" height="500"/>
 </p>
 
 
