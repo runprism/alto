@@ -38,7 +38,6 @@ class Agent(metaclass=MetaAgent):
         agent_name: str,
         agent_conf: Dict[str, Any],
         entrypoint: BaseEntrypoint,
-        mode: str = "prod"
     ):
         """
         Create agent
