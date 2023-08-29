@@ -81,9 +81,7 @@ class YmlParser:
         # Render string
         rendered_string = jinja_template.render()
         if not isinstance(rendered_string, str):
-            raise ValueError(
-                message=f'invalid return type `{str(type(rendered_string))}`'
-            )
+            raise ValueError(f'invalid return type `{str(type(rendered_string))}`')
         return rendered_string
 
     def parse(self) -> Dict[Any, Any]:
