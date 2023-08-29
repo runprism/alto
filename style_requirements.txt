@@ -3,3 +3,4 @@ tomli
 typed-ast
 types-PyYAML
 flake8
+boto3-stubs

@@ -157,7 +157,7 @@ class Ec2(Agent):
                 "AWS CLI is not properly configured. Consult AWS documentation:",
                 "https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html"    # noqa: E501
             ]
-            raise ValueError(message='\n'.join(msg_list))
+            raise ValueError('\n'.join(msg_list))
         return 0
 
     def create_key_pair(self,
@@ -873,7 +873,7 @@ class Ec2(Agent):
             ]
 
         # Return all paths
-        return [nomad_wkdir] + additional_paths
+        return [str(nomad_wkdir)] + additional_paths
 
     def parse_instance_type(self,
         agent_conf: Dict[str, Any]

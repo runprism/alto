@@ -29,7 +29,7 @@ class YmlParser:
             raise ValueError(f"environment variable `{var}` not found")
         return val
 
-    def Path(self, str):
+    def string_to_pathlib(self, str):
         """
         Convert string to a Path object. This enables users to use the Path API within
         their YAML file.
@@ -98,7 +98,7 @@ class YmlParser:
         # Define function dictionary
         func_dict = {
             "env": self.env,
-            "Path": self.Path,
+            "Path": self.string_to_pathlib,
         }
 
         # Rendered string

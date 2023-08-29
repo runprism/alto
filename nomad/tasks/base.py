@@ -24,7 +24,8 @@ from nomad.entrypoints import (  # noqa
     MetaEntrypoint,
     BaseEntrypoint,
     Project,
-    Function
+    Function,
+    Jupyter
 )
 
 
@@ -223,11 +224,10 @@ class BaseTask:
         if not hasattr(self, "entrypoint"):
             raise ValueError("entrypoint attribute not defined!")
         ep: BaseEntrypoint = self.entrypoint
-        ep_type = ep.entrypoint_conf["type"]
 
         # For `jupyter` entrypoints, we need to install the ipython kernel. Since we're
         # running these actions after the requirements are installed, then the
-        if ep_type == "jupyter":
+        if isinstance(ep, Jupyter):
             # Technically, the user's requirements should install ipython and the
             # ipykernel, but we'll do it again here anyways.
             for cmd in [
@@ -244,7 +244,7 @@ class BaseTask:
 
     def define_download_files(self,
         conf: Dict[str, Any]
-    ) -> None:
+    ) -> Dict[str, Any]:
         """
         Define the files to be downloaded from the agent after the agent has
         successfully run. This will be specified within the `download_files` key in the
@@ -268,11 +268,10 @@ class BaseTask:
         if not hasattr(self, "entrypoint"):
             raise ValueError("entrypoint attribute not defined!")
         ep: BaseEntrypoint = self.entrypoint
-        ep_type = ep.entrypoint_conf["type"]
 
         # For `jupyter` entrypoints, we need to install the ipython kernel. Since we're
         # running these actions after the requirements are installed, then the
-        if ep_type == "jupyter":
+        if isinstance(ep, Jupyter):
 
             # We should donwload the executed notebook. The path of the executed
             # notebook will be relative to `src`.
