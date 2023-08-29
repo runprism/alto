@@ -5,12 +5,12 @@
 
 </div>
 
-# :wave: Welcome to Nomad!
+# Welcome to Nomad!
 Nomad is the easiest way to run any code (functions, scripts, jupyter notebooks, or entire projects) on any cloud environment!
 
 ## Getting Started
 
-Prism can be installed via ```pip```. Prism requires Python >= 3.7.
+Nomad can be installed via ```pip```. Nomad requires Python >= 3.8.
 
 ```
 pip install --upgrade pip

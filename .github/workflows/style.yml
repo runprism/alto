@@ -1,0 +1,26 @@
+name: mypy and flake8
+
+on:
+  - push
+  - pull_request
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python 3.7
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.7
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r style_requirements.txt     
+    - name: mypy
+      run: |
+        mypy   prism/agents/ prism/cli/ prism/client/ prism/event_managers/ prism/infra/ prism/mixins/ prism/parsers/ prism/profiles/ prism/spark/ prism/constants.py prism/decorators/ prism/exceptions.py prism/prism_logging.py prism/main.py prism/target.py prism/task.py prism/ui.py
+        flake8 prism/agents/ prism/cli/ prism/client/ prism/event_managers/ prism/infra/ prism/mixins/ prism/parsers/ prism/profiles/ prism/spark/ prism/constants.py prism/decorators/ prism/exceptions.py prism/prism_logging.py prism/main.py prism/target.py prism/task.py prism/ui.py
+
+
+# EOF
