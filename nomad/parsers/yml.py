@@ -47,7 +47,7 @@ class YmlParser:
         return:
             yml_dict: YAML file represented as dictionary
         """
-        temp_dict = yaml.safe_load(rendered_str)
+        temp_dict: Optional[Dict[Any, Any]] = yaml.safe_load(rendered_str)
         if temp_dict is None:
             return {}
         return temp_dict

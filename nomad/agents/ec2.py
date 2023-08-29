@@ -1109,7 +1109,7 @@ class Ec2(Agent):
         """
         # Logging styling
         if self.instance_name is None:
-            logger.info(
+            logger.info(  # type: ignore
                 "Agent data not found! Did you manually delete the ~/.prism/ec2.json file?"  # noqa: E501
             )
             return

@@ -118,3 +118,12 @@ class Agent(metaclass=MetaAgent):
             return []
         download_files = agent_conf["download_files"]
         return download_files
+
+    def apply(self):
+        raise ValueError("`run` method not yet implemented!")
+
+    def run(self):
+        raise ValueError("`run` method not yet implemented!")
+
+    def delete(self):
+        raise ValueError("`run` method not yet implemented!")

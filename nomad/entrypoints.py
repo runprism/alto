@@ -180,7 +180,7 @@ class Jupyter(BaseEntrypoint):
             _check_optional_key_in_conf(_k, self.entrypoint_conf)
 
         # Update class attributes
-        self.kernel = None
+        self.kernel: str = ""
         if "kernel" in self.entrypoint_conf.keys():
             self.kernel = self.entrypoint_conf["kernel"]
         else:
