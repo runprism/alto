@@ -175,7 +175,7 @@ def test_jupyter_entrypoint():
             "ENV_VAR_2": "VALUE2",
         },
         "post_build_cmds": [
-            "pip install ipython ipykernel",
+            "pip install ipython ipykernel papermill",
             'ipython kernel install --name "python3" --user'
         ],
         "download_files": [
