@@ -38,10 +38,17 @@ $ nomad build -f nomad.yml
 <HH:MM:SS> | INFO  | my_cloud_agent[build]  | Instance i-XXXXXXXXXXXXXXXXX is pending... checking again in 5 seconds
 <HH:MM:SS> | INFO  | my_cloud_agent[build]  | Instance i-XXXXXXXXXXXXXXXXX is pending... checking again in 5 seconds
 <HH:MM:SS> | INFO  | my_cloud_agent[build]  | Instance i-XXXXXXXXXXXXXXXXX is pending... checking again in 5 seconds
+...
+...
+<HH:MM:SS> | INFO  | my_cloud_agent[run]    | Done!
+<HH:MM:SS> | INFO  | my_cloud_agent[delete] | Deleting key-pair my_cloud_agent at /../../../my_cloud_agent.pem
+<HH:MM:SS> | INFO  | my_cloud_agent[delete] | Deleting instance i-XXXXXXXXXXXXXXXXX
+<HH:MM:SS> | INFO  | my_cloud_agent[delete] | Deleting security group sg-XXXXXXXXXXXXXXXXX
 ```
 
 Alternatively, you could use the `nomad apply` command to first build the cloud environment and then use `nomad run` to actually run the code.
 
+Check out our documentation to see the full list of CLI command and their usage!
 
 ## Cloud environments
 Nomad currently supports the following cloud environments (which we call "Agents"):
