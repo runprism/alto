@@ -279,7 +279,6 @@ class BaseTask:
             if str(output_path) not in download_files:
                 download_files.append(str(output_path))
 
-        # Define class attribute
-        if download_files != []:
-            conf["download_files"] = download_files
+        # Update configuration
+        conf["download_files"] = download_files
         return conf
