@@ -6,6 +6,11 @@ Entrypoint into Nomad
 # Importa
 import argparse
 import rich_click as click
+from pathlib import Path
+import os
+from typing import Optional
+
+# Internal imports
 from nomad.tasks import (
     apply as apply_task,
     run as run_task,
@@ -13,9 +18,6 @@ from nomad.tasks import (
     delete as delete_task,
     init as init_task,
 )
-from pathlib import Path
-import os
-
 from nomad.constants import (
     SUPPORTED_AGENTS
 )
@@ -51,7 +53,7 @@ def cli():
     help="""Set the log level. [dim]\[default: info][/]""",  # noqa
     required=False
 )
-def init(type: str, file: str, log_level: str):
+def init(type: Optional[str], file: Optional[str], log_level: str):
     env_options = "|".join([
         f"{nomad.ui.BRIGHT_YELLOW}{e}{nomad.ui.RESET}" for e in SUPPORTED_AGENTS
     ])
