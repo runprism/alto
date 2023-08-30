@@ -31,8 +31,13 @@ What would you like the name of your configuration file to be (default: nomad.ym
 Modify the configuration file to match your project, exeucte the `nomad build` command. Under the hood, this command (1) builds the cloud environment according to instructions contained in the configuration file, and (2) executes your project on the cloud.
 ```
 $ nomad build -f nomad.yml
-
-
+<HH:MM:SS> | INFO  | my_cloud_agent[build]  | Created key pair my_cloud_agent
+<HH:MM:SS> | INFO  | my_cloud_agent[build]  | Created security group with ID sg-XXXXXXXXXXXXXXXXX in VPC vpc-XXXXXXXXXXXXXXXXX
+<HH:MM:SS> | INFO  | my_cloud_agent[build]  | Created EC2 instance with ID i-XXXXXXXXXXXXXXXXX
+<HH:MM:SS> | INFO  | my_cloud_agent[build]  | Instance i-XXXXXXXXXXXXXXXXX is pending... checking again in 5 seconds
+<HH:MM:SS> | INFO  | my_cloud_agent[build]  | Instance i-XXXXXXXXXXXXXXXXX is pending... checking again in 5 seconds
+<HH:MM:SS> | INFO  | my_cloud_agent[build]  | Instance i-XXXXXXXXXXXXXXXXX is pending... checking again in 5 seconds
+<HH:MM:SS> | INFO  | my_cloud_agent[build]  | Instance i-XXXXXXXXXXXXXXXXX is pending... checking again in 5 seconds
 ```
 
 Alternatively, you could use the `nomad apply` command to first build the cloud environment and then use `nomad run` to actually run the code.
