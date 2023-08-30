@@ -11,9 +11,15 @@ from nomad.tasks import (
     run as run_task,
     build as build_task,
     delete as delete_task,
+    init as init_task,
 )
 from pathlib import Path
 import os
+
+from nomad.constants import (
+    SUPPORTED_AGENTS
+)
+import nomad.ui
 
 
 # Use markup
@@ -24,6 +30,53 @@ click.rich_click.USE_RICH_MARKUP = True
 @click.group
 def cli():
     pass
+
+
+@cli.command()
+@click.option(
+    "--type",
+    help="""Type of cloud environment to use""",
+    required=False
+)
+@click.option(
+    "--file", "-f",
+    type=str,
+    help="""Name of new Nomad configuration file. [dim]\[default: nomad.yml][/]""",  # noqa
+    required=False,
+)
+@click.option(
+    '--log-level', '-l',
+    type=click.Choice(['info', 'warn', 'error', 'debug']),
+    default="info",
+    help="""Set the log level. [dim]\[default: info][/]""",  # noqa
+    required=False
+)
+def init(type: str, file: str, log_level: str):
+    env_options = "|".join([
+        f"{nomad.ui.BRIGHT_YELLOW}{e}{nomad.ui.RESET}" for e in SUPPORTED_AGENTS
+    ])
+    if type is None:
+        click.echo(" ")
+        type = click.prompt(f"What type of cloud environment do you want to use [{env_options}]?")  # noqa: E501
+        if type not in SUPPORTED_AGENTS:
+            raise ValueError(f"unsupported type `{type}`")
+    if file is None:
+        file = click.prompt(
+            f"What would you like the name of your configuration file to be {nomad.ui.GRAY}[default: nomad.yml]{nomad.ui.RESET}?",  # noqa: E501
+            default="nomad.yml",
+            show_default=False
+        )
+        click.echo(" ")
+
+    args = argparse.Namespace()
+    args.type = type
+    args.file = file
+    args.wkdir = Path(os.path.abspath(file)).parent
+    args.log_level = log_level
+
+    # Apply task
+    task = init_task.InitTask(args)
+    return task.run()
 
 
 @cli.command()

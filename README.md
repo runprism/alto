@@ -17,6 +17,27 @@ pip install --upgrade pip
 pip install nomad-dev
 ```
 
+Then, initialize a configuration file with the `nomad init` CLI command. This command will automatically prompt you for all the information needed to configure your cloud environment.
+```
+$ nomad init
+
+What type of cloud environment do you want to use [ec2]? ec2
+What would you like the name of your configuration file to be (default: nomad.yml)?
+
+<HH:MM:SS> | INFO | Building configuration file...
+<HH:MM:SS> | INFO | Done!
+```
+
+Modify the configuration file to match your project, exeucte the `nomad build` command. Under the hood, this command (1) builds the cloud environment according to instructions contained in the configuration file, and (2) executes your project on the cloud.
+```
+$ nomad build -f nomad.yml
+
+
+```
+
+Alternatively, you could use the `nomad apply` command to first build the cloud environment and then use `nomad run` to actually run the code.
+
+
 ## Cloud environments
 Nomad currently supports the following cloud environments (which we call "Agents"):
 - **ec2**
