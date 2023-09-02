@@ -28,7 +28,9 @@ What would you like the name of your configuration file to be (default: nomad.ym
 <HH:MM:SS> | INFO | Done!
 ```
 
-Modify the configuration file to match your project, exeucte the `nomad build` command. Under the hood, this command (1) builds the cloud environment according to instructions contained in the configuration file, and (2) executes your project on the cloud.
+To run your project on your cloud environment, use the `nomad build` command. Under the hood, this command:
+1. Builds the cloud environment according to instructions contained in the configuration file, and
+2. Executes your project on the cloud.
 ```
 $ nomad build -f nomad.yml
 <HH:MM:SS> | INFO  | my_cloud_agent[build]  | Created key pair my_cloud_agent
@@ -53,7 +55,6 @@ Check out our documentation to see the full list of CLI command and their usage!
 ## Cloud environments
 Nomad currently supports the following cloud environments (which we call "Agents"):
 - **ec2**
-
 
 ## Product Roadmap
 
