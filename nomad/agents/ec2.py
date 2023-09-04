@@ -1018,7 +1018,7 @@ class Ec2(Agent):
 
             # Build the shell command
             cmd = [
-                '/bin/sh', self.AGENT_APPLY_SCRIPT,
+                '/bin/bash', self.AGENT_APPLY_SCRIPT,
                 '-r', str(requirements_txt_str),
                 '-p', str(pem_key_path),
                 '-u', user,
