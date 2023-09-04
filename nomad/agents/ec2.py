@@ -212,7 +212,7 @@ class Ec2(Agent):
 
     def write_json(self, data: Dict[str, Dict[str, Any]]):
         """
-        Write `data` to ~/.prism/ec2.json
+        Write `data` to ~/.nomad/ec2.json
 
         args:
             data: data to write to JSON
@@ -222,7 +222,7 @@ class Ec2(Agent):
 
     def update_json(self, data: Dict[str, Dict[str, Any]]):
         """
-        Update ~/.prism/ec2.json
+        Update ~/.nomad/ec2.json
 
         args:
             ...
@@ -670,9 +670,9 @@ class Ec2(Agent):
 
             def _create_exception(resource):
                 return ValueError('\n'.join([
-                    f"{resource} exists, but ~/.prism/ec2.json file not found! This only happens if:",  # noqa: E501
+                    f"{resource} exists, but ~/.nomad/ec2.json file not found! This only happens if:",  # noqa: E501
                     f"    1. You manually created the {resource}",
-                    "    2. You deleted ~/.prism/ec2.json",
+                    "    2. You deleted ~/.nomad/ec2.json",
                     f"Delete the {resource} from EC2 and try again!"
                 ]))
 
@@ -696,9 +696,9 @@ class Ec2(Agent):
             else:
 
                 # If the key-pair exists, then the location of the PEM key path should
-                # be contained in ~/.prism/ec2.json. If it isn't, then either:
+                # be contained in ~/.nomad/ec2.json. If it isn't, then either:
                 #   1. The user manually created the key pair
-                #   2. The user deleted ~/.prism/ec2.json
+                #   2. The user deleted ~/.nomad/ec2.json
                 if not Path(INTERNAL_FOLDER / 'ec2.json').is_file():
                     raise _create_exception("key-pair")
                 pem_key_path = self.pem_key_path
@@ -1110,7 +1110,7 @@ class Ec2(Agent):
         # Logging styling
         if self.instance_name is None:
             logger.info(  # type: ignore
-                "Agent data not found! Did you manually delete the ~/.prism/ec2.json file?"  # noqa: E501
+                "Agent data not found! Did you manually delete the ~/.nomad/ec2.json file?"  # noqa: E501
             )
             return
 
