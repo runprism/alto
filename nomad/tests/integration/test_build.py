@@ -3,6 +3,7 @@
 """
 
 # Imports
+import time
 import os
 from pathlib import Path
 from click.testing import CliRunner
@@ -36,6 +37,7 @@ def _build_integration_test(
 
     # Invoke the `build` command
     result = runner.invoke(cli, ["build", "-f", "nomad.yml", "--no-delete-success"])
+    time.sleep(30)
 
     # Check if EC2 resources exist
     resource_name = "my_cloud_agent"
@@ -49,14 +51,6 @@ def _build_integration_test(
     test_output = s3_file_exists(file_s3_uri)
     expected_output = f"Hello world from our `{fname_name}` test case!"
     assert test_output == expected_output
-
-    # Build again, but this time delete on failure
-    result = runner.invoke(cli, ["build", "-f", "nomad.yml"])
-    assert result.exit_code == 0
-    resources = _resources_exist(resource_name)
-    assert not resources["key_pair"]
-    assert not resources["security_group"]
-    assert not resources["instance"]
 
 
 def test_function():

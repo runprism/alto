@@ -527,7 +527,7 @@ class Ec2(Agent):
                     'IpProtocol': 'tcp',
                     'FromPort': 22,
                     'ToPort': 22,
-                    'Ipv6Ranges': [{'CidrIpv6': f'{external_ip}/128'}]
+                    'Ipv6Ranges': [{'CidrIpv6': '0.0.0.0/0'}]
                 },
             ]
 

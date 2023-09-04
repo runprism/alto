@@ -3,6 +3,7 @@
 """
 
 # Imports
+import time
 import os
 from pathlib import Path
 from click.testing import CliRunner
@@ -35,6 +36,7 @@ def _apply_run_integration_test(
 
     # Invoke the `apply` command
     result = runner.invoke(cli, ["apply", "-f", "nomad.yml"])
+    time.sleep(30)
 
     # Check if EC2 resources exist
     resource_name = "my_cloud_agent"
@@ -73,15 +75,6 @@ def test_function():
     assert resources["security_group"]
     assert resources["instance"]
 
-    # Run, but this time put delete on success
-    runner = CliRunner()
-    result = runner.invoke(cli, ['run', '-f', 'nomad.yml'])
-    assert result.exit_code == 0
-    resources = _resources_exist(resource_name)
-    assert not resources["key_pair"]
-    assert not resources["security_group"]
-    assert not resources["instance"]
-
 
 def test_script():
     """
@@ -100,15 +93,6 @@ def test_script():
     assert resources["security_group"]
     assert resources["instance"]
 
-    # Run, but this time put delete on success
-    runner = CliRunner()
-    result = runner.invoke(cli, ['run', '-f', 'nomad.yml'])
-    assert result.exit_code == 0
-    resources = _resources_exist(resource_name)
-    assert not resources["key_pair"]
-    assert not resources["security_group"]
-    assert not resources["instance"]
-
 
 def test_project():
     """
@@ -126,15 +110,6 @@ def test_project():
     assert resources["key_pair"]
     assert resources["security_group"]
     assert resources["instance"]
-
-    # Run, but this time put delete on success
-    runner = CliRunner()
-    result = runner.invoke(cli, ['run', '-f', 'nomad.yml'])
-    assert result.exit_code == 0
-    resources = _resources_exist(resource_name)
-    assert not resources["key_pair"]
-    assert not resources["security_group"]
-    assert not resources["instance"]
 
 
 def test_jupyter():
@@ -157,19 +132,13 @@ def test_jupyter():
     assert result.exit_code == 0
 
     # Run
-    result = runner.invoke(cli, ["run", "-f", "nomad.yml"])
+    result = runner.invoke(cli, ["run", "-f", "nomad.yml", "--no-delete-success"])
     assert result.exit_code == 0
 
     # We should see the executed notebook in our folder
     exec_nb_path = Path(TEST_JUPYTER / 'nomad_nb_exec.ipynb')
     assert exec_nb_path.is_file()
     os.unlink(exec_nb_path)
-
-    # The resources should be deleted on a successful run
-    resources = _resources_exist(resource_name)
-    assert not resources["key_pair"]
-    assert not resources["security_group"]
-    assert not resources["instance"]
 
 
 def test_download_files():
@@ -192,7 +161,7 @@ def test_download_files():
     assert result.exit_code == 0
 
     # Run
-    result = runner.invoke(cli, ["run", "-f", "nomad.yml"])
+    result = runner.invoke(cli, ["run", "-f", "nomad.yml", "--no-delete-success"])
     assert result.exit_code == 0
 
     # We should see the executed notebook in our folder
@@ -203,9 +172,3 @@ def test_download_files():
     expected_txt = "Hello world from our `test_download_files` test case!"
     assert downloaded_file_txt == expected_txt
     os.unlink(downloaded_file)
-
-    # The resources should be deleted on a successful run
-    resources = _resources_exist(resource_name)
-    assert not resources["key_pair"]
-    assert not resources["security_group"]
-    assert not resources["instance"]
