@@ -3,7 +3,6 @@
 """
 
 # Imports
-import time
 import os
 from pathlib import Path
 from click.testing import CliRunner
@@ -37,7 +36,6 @@ def _build_integration_test(
 
     # Invoke the `build` command
     result = runner.invoke(cli, ["build", "-f", "nomad.yml", "--no-delete-success"])
-    time.sleep(30)
 
     # Check if EC2 resources exist
     resource_name = "my_cloud_agent"

@@ -3,7 +3,6 @@ Pytest configuration
 """
 
 # Imports
-import time
 import os
 from pathlib import Path
 from click.testing import CliRunner
@@ -35,7 +34,6 @@ def pytest_sessionstart():
     result = runner.invoke(
         cli, ["apply", "-f", "nomad.yml"]
     )
-    time.sleep(60)
 
     # Check if EC2 resources exist
     resource_name = "my_cloud_agent"
@@ -50,7 +48,6 @@ def pytest_sessionstart():
     result = runner.invoke(
         cli, ["apply", "-f", "nomad.yml"]
     )
-    time.sleep(60)
 
     # Check if EC2 resources exist
     resource_name = "my_cloud_agent"
@@ -70,7 +67,6 @@ def pytest_sessionfinish():
     result = runner.invoke(
         cli, ["delete", "-f", "nomad.yml"]
     )
-    time.sleep(60)
 
     # Resources should no longer exist
     resource_name = "my_cloud_agent"

@@ -11,6 +11,10 @@ on:
       - main
     paths:
       - 'nomad/**'
+  workflow_run:
+    workflows: ["CI MacOS"]
+    types: 
+      - completed
 
 jobs:
   test:

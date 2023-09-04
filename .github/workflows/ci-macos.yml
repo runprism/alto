@@ -11,10 +11,6 @@ on:
       - main
     paths:
       - 'nomad/**'
-  workflow_run:
-    workflows: ["CI Linux"]
-    types: 
-      - completed
 
 jobs:
   test:
