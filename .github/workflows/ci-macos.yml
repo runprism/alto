@@ -1,16 +1,6 @@
 name: CI MacOS
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'nomad/**'
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'nomad/**'
   workflow_run:
     workflows: ["CI Linux"]
     types: 
@@ -38,7 +28,5 @@ jobs:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
-      run: |
-        mkdir -p ~/.nomad
-        chmod +rwx ~/.nomad
-        tox
+        __NOMAD_INTERNAL_FOLDER__: ${{ secrets.__MACOS_NOMAD_INTERNAL_FOLDER__ }}
+      run: tox

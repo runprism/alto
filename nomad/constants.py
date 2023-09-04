@@ -5,12 +5,16 @@ Constants used throughout the Nomad project
 # Imports
 import os
 from pathlib import Path
+import stat
 
 
 # Nomad internal folder
-INTERNAL_FOLDER = Path(os.path.expanduser("~/.nomad"))
+INTERNAL_FOLDER = Path(os.environ.get(
+    "__NOMAD_INTERNAL_FOLDER__", Path(os.path.expanduser("~/.nomad"))
+))
 if not INTERNAL_FOLDER.is_dir():
-    INTERNAL_FOLDER.mkdir(parents=True, exist_ok=True)
+    os.chmod(Path(INTERNAL_FOLDER).parent, stat.S_IRWXO)
+    INTERNAL_FOLDER.mkdir(mode=0o770, parents=True, exist_ok=True)
 
 
 # Logger name
