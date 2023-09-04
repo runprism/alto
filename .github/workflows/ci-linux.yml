@@ -38,4 +38,4 @@ jobs:
         pip install -r dev_requirements.txt
         mkdir /home/runner/work/nomad/nomad/.nomad
         chmod +rwx /home/runner/work/nomad/nomad/.nomad
-        pytest --verbose
+        pytest
