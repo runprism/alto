@@ -8,7 +8,9 @@ from pathlib import Path
 
 
 # Nomad internal folder
-INTERNAL_FOLDER = Path(os.path.expanduser("~/.nomad"))
+INTERNAL_FOLDER = os.environ.get(
+    "_NOMAD_INTERNAL_FOLDER_", Path(os.path.expanduser("~/.nomad"))
+)
 if not INTERNAL_FOLDER.is_dir():
     INTERNAL_FOLDER.mkdir(parents=True)
 
