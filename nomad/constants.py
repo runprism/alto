@@ -12,7 +12,7 @@ INTERNAL_FOLDER = Path(os.environ.get(
     "_NOMAD_INTERNAL_FOLDER_", Path(os.path.expanduser("~/.nomad"))
 ))
 if not INTERNAL_FOLDER.is_dir():
-    INTERNAL_FOLDER.mkdir(parents=True)
+    INTERNAL_FOLDER.mkdir(mode=0o770, parents=True, exist_ok=True)
 
 
 # Logger name
