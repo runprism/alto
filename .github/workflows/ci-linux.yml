@@ -15,31 +15,37 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    strategy:
-      max-parallel: 1
-      matrix:
-        python-version: ['3.10']
     steps:
     - uses: actions/checkout@v2
+    
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v2
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+    
+    - name: Login to Docker Hub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_PASSWORD }}
+    
+    - name: Build and push
+      uses: docker/build-push-action@v4
+      with:
+        push: true
+        tags: nomad-dev:latest
+
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Set up SSH
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y openssh-client
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-    - name: Test cases
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
-        __NOMAD_INTERNAL_FOLDER__: ${{ secrets.__LINUX_NOMAD_INTERNAL_FOLDER__ }}
-      run: |
-        pip install -r dev_requirements.txt
-        mkdir /home/runner/work/nomad/nomad/.nomad
-        chmod +rwx /home/runner/work/nomad/nomad/.nomad
-        pytest
+
+    - uses: addnab/docker-run-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_PASSWORD }}
+        registry: gcr.io
+        options: -e AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }} AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} AWS_DEFAULT_REGION=${{ secrets.AWS_DEFAULT_REGION }}
+        image: nomad-dev:latest
+
