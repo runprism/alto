@@ -34,18 +34,7 @@ jobs:
       uses: docker/build-push-action@v4
       with:
         push: true
+        build-args: AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }} AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} AWS_DEFAULT_REGION=${{ secrets.AWS_DEFAULT_REGION }}
         tags: nomad-dev:latest
 
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
-      with:
-        python-version: ${{ matrix.python-version }}
-
-    - uses: addnab/docker-run-action@v3
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_PASSWORD }}
-        registry: gcr.io
-        options: -e AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }} AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} AWS_DEFAULT_REGION=${{ secrets.AWS_DEFAULT_REGION }}
-        image: nomad-dev:latest
 
