@@ -10,7 +10,8 @@ from nomad.main import cli
 from nomad.tests.integration.utils import (
     key_pair_exists,
     security_group_exists,
-    running_instance_exists
+    running_instance_exists,
+    cli_runner
 )
 
 
@@ -28,33 +29,27 @@ def pytest_sessionstart():
     # First, test that the apply command doesn't create resources if there is an error
     # in the configuration file.
     os.chdir(TEST_ERROR)
-    runner = CliRunner()
 
     # Invoke the `apply` command
-    result = runner.invoke(
-        cli, ["apply", "-f", "nomad.yml"]
-    )
+    proc = cli_runner(["apply", "-f", "nomad.yml"])
 
     # Check if EC2 resources exist
     resource_name = "my_cloud_agent"
     assert not key_pair_exists(resource_name)
     assert not security_group_exists(resource_name)
     assert not running_instance_exists(resource_name)
-    assert not result.exit_code == 0
+    assert not proc.returncode == 0
 
     # Now, invoke the `apply` command and create a proper EC2 agent.
     os.chdir(TEST_FUNCTION)
-    runner = CliRunner()
-    result = runner.invoke(
-        cli, ["apply", "-f", "nomad.yml"]
-    )
+    proc = cli_runner(["apply", "-f", "nomad.yml"])
 
     # Check if EC2 resources exist
     resource_name = "my_cloud_agent"
     assert key_pair_exists(resource_name)
     assert security_group_exists(resource_name)
     assert running_instance_exists(resource_name)
-    assert result.exit_code == 0
+    assert proc.returncode == 0
 
 
 def pytest_sessionfinish():

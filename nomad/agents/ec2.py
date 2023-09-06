@@ -33,7 +33,6 @@ import re
 import time
 from typing import Any, Dict, List, Optional
 import subprocess
-import shutil
 import urllib.request
 import stat
 
@@ -143,7 +142,7 @@ class Ec2(Agent):
 
     def aws_cli(self) -> int:
         """
-        Confirms that the user has configured their AWS CLI
+        Confirms that the user has AWS credentials and can use the boto3 API
         args:
             None
         returns:
@@ -151,14 +150,16 @@ class Ec2(Agent):
         raises:
             pipe.exceptions.RuntimeException() if user has not configured AWS CLI
         """
-        system_return = shutil.which('aws')
-        if system_return is None:
+        s3 = boto3.resource('s3')
+        try:
+            s3.buckets.all()
+            return 0
+        except botocore.exceptions.NoCredentialsError:
             msg_list = [
-                "AWS CLI is not properly configured. Consult AWS documentation:",
-                "https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html"    # noqa: E501
+                "AWS credentials not found. Consult Boto3 documentation:",
+                "https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html"    # noqa: E501
             ]
             raise ValueError('\n'.join(msg_list))
-        return 0
 
     def create_key_pair(self,
         ec2_client: Any,
@@ -199,6 +200,10 @@ class Ec2(Agent):
                 KeyName=key_name
             )
             raise e
+
+        # If, for whatever reason, the file doesn't exist, throw an error
+        if not Path(directory / f"{key_name}.pem").is_file():
+            raise ValueError("Could not find newly created PEM key!")
 
         # Change the permissions
         os.chmod(Path(directory / f"{key_name}.pem"), stat.S_IREAD)
@@ -372,7 +377,6 @@ class Ec2(Agent):
         return resources
 
     def check_instance_data(self,
-        ec2_client: Any,
         instance_id: Optional[str]
     ) -> Dict[str, Any]:
         """
@@ -390,6 +394,7 @@ class Ec2(Agent):
                 "state": ...,
             }
         """
+        ec2_client = boto3.client("ec2")
         results: Dict[str, Any] = {}
 
         # If the instance is None, then return an empty dictionary. This happens if the
@@ -440,7 +445,7 @@ class Ec2(Agent):
         # If the instance is pending, then wait until the state is running
         elif state == State.PENDING:
             while state == State.PENDING:
-                results = self.check_instance_data(ec2_client, instance_id)
+                results = self.check_instance_data(instance_id)
                 state = results["state"]
                 time.sleep(1)
             return state
@@ -450,7 +455,7 @@ class Ec2(Agent):
         elif state in [State.STOPPED, State.STOPPING]:
             ec2_client.start_instances(InstanceIds=instance_id)
             while state != State.RUNNING:
-                results = self.check_instance_data(ec2_client, instance_id)
+                results = self.check_instance_data(instance_id)
                 time.sleep(1)
                 state = results["state"]
             return state
@@ -785,7 +790,7 @@ class Ec2(Agent):
                 )
 
             # Instance data
-            resp = self.check_instance_data(ec2_client, instance_id)
+            resp = self.check_instance_data(instance_id)
 
             # If the instance exists but its key-name is not `instance_name` (this
             # really should never happen unless the user manually creates an EC2
@@ -804,10 +809,7 @@ class Ec2(Agent):
                     logger.info(
                         f"{log_prefix}  | Instance {log_instance_id_template.format(instance_id=instance_id)} is {log_pending_status}... checking again in 5 seconds"  # noqa: E501
                     )
-                    resp = self.check_instance_data(
-                        ec2_client,
-                        instance_id
-                    )
+                    resp = self.check_instance_data(instance_id)
                     time.sleep(5)
 
             # If the state exiss but has stopped, then restart it
@@ -1018,7 +1020,7 @@ class Ec2(Agent):
 
             # Build the shell command
             cmd = [
-                '/bin/bash', '-c',
+                '/bin/bash',
                 self.AGENT_APPLY_SCRIPT,
                 '-r', str(requirements_txt_str),
                 '-p', str(pem_key_path),
@@ -1081,7 +1083,7 @@ class Ec2(Agent):
 
         # The agent data should exist...Build the shell command
         cmd = [
-            '/bin/sh', self.AGENT_RUN_SCRIPT,
+            '/bin/bash', self.AGENT_RUN_SCRIPT,
             '-p', str(self.pem_key_path),
             '-u', 'ec2-user',
             '-n', self.public_dns_name,
@@ -1132,7 +1134,14 @@ class Ec2(Agent):
             self.ec2_client.delete_key_pair(
                 KeyName=self.key_name
             )
-            os.unlink(str(self.pem_key_path))
+            try:
+                os.unlink(str(self.pem_key_path))
+
+            # If this file never existed, then pass
+            except FileNotFoundError:
+                logger.info(
+                    f"{log_prefix} | Key-pair {log_key_pair} at {log_key_path} doesn't exist!"  # noqa: E501
+                )
 
         # Instance
         if self.instance_id is None:

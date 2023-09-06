@@ -5,12 +5,11 @@
 # Imports
 import os
 from pathlib import Path
-from click.testing import CliRunner
-from nomad.main import cli
 from nomad.tests.integration.utils import (
     _resources_exist,
     s3_file_exists,
     delete_s3_file,
+    cli_runner,
 )
 
 
@@ -28,14 +27,13 @@ def _build_integration_test(
     fname_name: str,
 ):
     os.chdir(test_path)
-    runner = CliRunner()
 
     # Delete file in S3, if it exists
     file_s3_uri = f"s3://nomad-dev-tests/tests/{fname_name}.txt"
     delete_s3_file(file_s3_uri)
 
     # Invoke the `build` command
-    result = runner.invoke(cli, ["build", "-f", "nomad.yml", "--no-delete-success"])
+    proc = cli_runner(["build", "-f", "nomad.yml", "--no-delete-success", "--no-delete-failure"])  # noqa: E501
 
     # Check if EC2 resources exist
     resource_name = "my_cloud_agent"
@@ -43,7 +41,7 @@ def _build_integration_test(
     assert resources["key_pair"]
     assert resources["security_group"]
     assert resources["instance"]
-    assert result.exit_code == 0
+    assert proc.returncode == 0
 
     # Check output
     test_output = s3_file_exists(file_s3_uri)

@@ -5,12 +5,11 @@
 # Imports
 import os
 from pathlib import Path
-from click.testing import CliRunner
-from nomad.main import cli
 from nomad.tests.integration.utils import (
     _resources_exist,
     s3_file_exists,
     delete_s3_file,
+    cli_runner
 )
 from typing import List
 
@@ -31,10 +30,7 @@ def _apply_run_integration_test(
     run_args: List[str]
 ):
     os.chdir(test_path)
-    runner = CliRunner()
-
-    # Invoke the `apply` command
-    result = runner.invoke(cli, ["apply", "-f", "nomad.yml"])
+    proc = cli_runner(["apply", "-f", "nomad.yml"])
 
     # Check if EC2 resources exist
     resource_name = "my_cloud_agent"
@@ -42,15 +38,15 @@ def _apply_run_integration_test(
     assert resources["key_pair"]
     assert resources["security_group"]
     assert resources["instance"]
-    assert result.exit_code == 0
+    assert proc.returncode == 0
 
     # Delete file in S3, if it exists
     file_s3_uri = f"s3://nomad-dev-tests/tests/{fname_name}.txt"
     delete_s3_file(file_s3_uri)
 
     # Run
-    result = runner.invoke(cli, run_args)
-    assert result.exit_code == 0
+    proc = cli_runner(run_args)
+    assert proc.returncode == 0
     test_output = s3_file_exists(file_s3_uri)
     expected_output = f"Hello world from our `{fname_name}` test case!"
     assert test_output == expected_output
@@ -63,7 +59,7 @@ def test_function():
     _apply_run_integration_test(
         TEST_FUNCTION,
         "test_function",
-        ['run', '-f', 'nomad.yml', '--no-delete-success']
+        ['run', '-f', 'nomad.yml', '--no-delete-success', '--no-delete-failure']
     )
 
     # The resources should still exist.
@@ -81,7 +77,7 @@ def test_script():
     _apply_run_integration_test(
         TEST_SCRIPT,
         "test_script",
-        ['run', '-f', 'nomad.yml', '--no-delete-success']
+        ['run', '-f', 'nomad.yml', '--no-delete-success', '--no-delete-failure']
     )
 
     # The resources should still exist.
@@ -99,7 +95,7 @@ def test_project():
     _apply_run_integration_test(
         TEST_PROJECT,
         "test_project",
-        ['run', '-f', 'nomad.yml', '--no-delete-success']
+        ['run', '-f', 'nomad.yml', '--no-delete-success', '--no-delete-failure']
     )
 
     # The resources should still exist.
@@ -116,10 +112,7 @@ def test_jupyter():
     after a successful run.
     """
     os.chdir(TEST_JUPYTER)
-    runner = CliRunner()
-
-    # Invoke the `apply` command
-    result = runner.invoke(cli, ["apply", "-f", "nomad.yml"])
+    proc = cli_runner(["apply", "-f", "nomad.yml"])
 
     # Check if EC2 resources exist
     resource_name = "my_cloud_agent"
@@ -127,11 +120,11 @@ def test_jupyter():
     assert resources["key_pair"]
     assert resources["security_group"]
     assert resources["instance"]
-    assert result.exit_code == 0
+    assert proc.returncode == 0
 
     # Run
-    result = runner.invoke(cli, ["run", "-f", "nomad.yml", "--no-delete-success"])
-    assert result.exit_code == 0
+    proc = cli_runner(["run", "-f", "nomad.yml", "--no-delete-success", "--no-delete-failure"])  # noqa: E501
+    assert proc.returncode == 0
 
     # We should see the executed notebook in our folder
     exec_nb_path = Path(TEST_JUPYTER / 'nomad_nb_exec.ipynb')
@@ -145,10 +138,9 @@ def test_download_files():
     execution.
     """
     os.chdir(TEST_DOWNLOAD_FILES)
-    runner = CliRunner()
 
     # Invoke the `apply` command
-    result = runner.invoke(cli, ["apply", "-f", "nomad.yml"])
+    proc = cli_runner(["apply", "-f", "nomad.yml"])
 
     # Check if EC2 resources exist
     resource_name = "my_cloud_agent"
@@ -156,11 +148,11 @@ def test_download_files():
     assert resources["key_pair"]
     assert resources["security_group"]
     assert resources["instance"]
-    assert result.exit_code == 0
+    assert proc.returncode == 0
 
     # Run
-    result = runner.invoke(cli, ["run", "-f", "nomad.yml", "--no-delete-success"])
-    assert result.exit_code == 0
+    proc = cli_runner(["run", "-f", "nomad.yml", "--no-delete-success", "--no-delete-failure"])  # noqa: E501
+    assert proc.returncode == 0
 
     # We should see the executed notebook in our folder
     downloaded_file = Path(TEST_DOWNLOAD_FILES / 'download_files.txt')

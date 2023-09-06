@@ -1,4 +1,4 @@
-nomad_agent:
+my_cloud_agent:
   type: ec2
   instance_type: t2.micro
   entrypoint:
