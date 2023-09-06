@@ -1,10 +1,14 @@
 FROM ubuntu:latest
 
+ENV TZ=America/New_York
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
 RUN apt-get update && \
     apt-get install -y software-properties-common gcc && \
     add-apt-repository -y ppa:deadsnakes/ppa
 
 ARG PYTHON_VERSION
+ENV PYTHON_VERSION=$PYTHON_VERSION
 RUN apt-get update && \
     apt-get install -y $PYTHON_VERSION python3-distutils python3-pip python3-apt
 

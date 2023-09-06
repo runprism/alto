@@ -33,7 +33,7 @@ def _apply_run_integration_test(
     proc = cli_runner(["apply", "-f", "nomad.yml"])
 
     # Check if EC2 resources exist
-    resource_name = "my_cloud_agent"
+    resource_name = f"my_cloud_agent-{os.environ.get('PYTHON_VERSION')}"
     resources = _resources_exist(resource_name)
     assert resources["key_pair"]
     assert resources["security_group"]
@@ -63,7 +63,7 @@ def test_function():
     )
 
     # The resources should still exist.
-    resource_name = "my_cloud_agent"
+    resource_name = f"my_cloud_agent-{os.environ.get('PYTHON_VERSION')}"
     resources = _resources_exist(resource_name)
     assert resources["key_pair"]
     assert resources["security_group"]
@@ -81,7 +81,7 @@ def test_script():
     )
 
     # The resources should still exist.
-    resource_name = "my_cloud_agent"
+    resource_name = f"my_cloud_agent-{os.environ.get('PYTHON_VERSION')}"
     resources = _resources_exist(resource_name)
     assert resources["key_pair"]
     assert resources["security_group"]
@@ -99,7 +99,7 @@ def test_project():
     )
 
     # The resources should still exist.
-    resource_name = "my_cloud_agent"
+    resource_name = f"my_cloud_agent-{os.environ.get('PYTHON_VERSION')}"
     resources = _resources_exist(resource_name)
     assert resources["key_pair"]
     assert resources["security_group"]
@@ -115,7 +115,7 @@ def test_jupyter():
     proc = cli_runner(["apply", "-f", "nomad.yml"])
 
     # Check if EC2 resources exist
-    resource_name = "my_cloud_agent"
+    resource_name = f"my_cloud_agent-{os.environ.get('PYTHON_VERSION')}"
     resources = _resources_exist(resource_name)
     assert resources["key_pair"]
     assert resources["security_group"]
@@ -143,7 +143,7 @@ def test_download_files():
     proc = cli_runner(["apply", "-f", "nomad.yml"])
 
     # Check if EC2 resources exist
-    resource_name = "my_cloud_agent"
+    resource_name = f"my_cloud_agent-{os.environ.get('PYTHON_VERSION')}"
     resources = _resources_exist(resource_name)
     assert resources["key_pair"]
     assert resources["security_group"]

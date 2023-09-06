@@ -36,7 +36,7 @@ def _build_integration_test(
     proc = cli_runner(["build", "-f", "nomad.yml", "--no-delete-success", "--no-delete-failure"])  # noqa: E501
 
     # Check if EC2 resources exist
-    resource_name = "my_cloud_agent"
+    resource_name = f"my_cloud_agent-{os.environ.get('PYTHON_VERSION')}"
     resources = _resources_exist(resource_name)
     assert resources["key_pair"]
     assert resources["security_group"]

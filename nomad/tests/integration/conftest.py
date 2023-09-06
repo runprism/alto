@@ -34,7 +34,7 @@ def pytest_sessionstart():
     proc = cli_runner(["apply", "-f", "nomad.yml"])
 
     # Check if EC2 resources exist
-    resource_name = "my_cloud_agent"
+    resource_name = f"bad_cloud_agent-{os.environ.get('PYTHON_VERSION')}"
     assert not key_pair_exists(resource_name)
     assert not security_group_exists(resource_name)
     assert not running_instance_exists(resource_name)
@@ -45,7 +45,7 @@ def pytest_sessionstart():
     proc = cli_runner(["apply", "-f", "nomad.yml"])
 
     # Check if EC2 resources exist
-    resource_name = "my_cloud_agent"
+    resource_name = f"my_cloud_agent-{os.environ.get('PYTHON_VERSION')}"
     assert key_pair_exists(resource_name)
     assert security_group_exists(resource_name)
     assert running_instance_exists(resource_name)
@@ -64,7 +64,7 @@ def pytest_sessionfinish():
     )
 
     # Resources should no longer exist
-    resource_name = "my_cloud_agent"
+    resource_name = f"my_cloud_agent-{os.environ.get('PYTHON_VERSION')}"
     assert result.exit_code == 0
     assert not key_pair_exists(resource_name)
     assert not security_group_exists(resource_name)
