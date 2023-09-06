@@ -15,6 +15,9 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['python3.8', 'python3.9', 'python3.10']
     steps:
     - uses: actions/checkout@v2
     
@@ -33,11 +36,12 @@ jobs:
     - name: Build and push
       uses: docker/build-push-action@v4
       with:
-        push: true
+        push: false
         build-args: |
+          PYTHON_VERSION=${{ matrix.python-version }}
           AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION=${{ secrets.AWS_DEFAULT_REGION }}
-        tags: nomad-dev:latest
+        tags: nomad-dev-${{ matrix.python-version }}:latest
 
 
