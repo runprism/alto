@@ -143,7 +143,7 @@ def test_yml_parser():
             "instance_type": "t2.micro",
             "entrypoint": {
                 "type": "script",
-                "cmd": "python main.py --output-name test_download_files --python-version 3.10.12 --platform darwin"  # noqa: E501
+                "cmd": f"python main.py --output-name test_download_files --python-version {PYTHON_VERSION} --platform {PLATFORM}"  # noqa: E501
             },
             "download_files": ['darwin_31012_test_download_files.txt']
         }
