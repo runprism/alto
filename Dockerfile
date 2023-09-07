@@ -9,13 +9,15 @@ RUN apt-get update && \
 
 ARG PYTHON_VERSION
 RUN apt-get update && \
-    apt-get install -y $PYTHON_VERSION python3-distutils python3-pip python3-apt
+    apt-get install -y $PYTHON_VERSION $PYTHON_VERSION-env python3-distutils python3-pip python3-apt
 
 RUN apt-get install -y openssh-client
 
 COPY . ./nomad/
 WORKDIR ./nomad
-RUN pip install -r dev_requirements.txt
+RUN $PYTHON_VERSION -m venv /opt/venv
+RUN . /opt/venv/bin/activate && \
+    pip install -r dev_requirements.txt
 
 ARG AWS_ACCESS_KEY_ID
 ENV AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
@@ -27,9 +29,9 @@ ARG AWS_DEFAULT_REGION
 ENV AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION
 
 # Unit tests
-RUN pytest --ignore=nomad/tests/integration
+RUN . /opt/venv/bin/activate && pytest --ignore=nomad/tests/integration
 
-# Integration tests
+# # Integration tests
 WORKDIR nomad/tests/integration
-RUN pytest
+RUN . /opt/venv/bin/activate && pytest
 WORKDIR ./nomad
