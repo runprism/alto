@@ -8,8 +8,8 @@ RUN apt-get update && \
     add-apt-repository -y ppa:deadsnakes/ppa
 
 ARG PYTHON_VERSION
-RUN apt-get update && \
-    apt-get install -y $PYTHON_VERSION $PYTHON_VERSION-env python3-distutils python3-pip python3-apt
+RUN apt-get update
+RUN if [[ "$PYTHON_VERSION" < "python3.10" ]] ; then apt-get install -y $PYTHON_VERSION $PYTHON_VERSION-env python3-distutils python3-pip python3-apt ; else apt-get install -y $PYTHON_VERSION $PYTHON_VERSION-venv python3-distutils python3-pip python3-apt ; fi
 
 RUN apt-get install -y openssh-client
 
