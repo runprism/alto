@@ -145,7 +145,7 @@ def test_yml_parser():
                 "type": "script",
                 "cmd": f"python main.py --output-name test_download_files --python-version {PYTHON_VERSION} --platform {PLATFORM}"  # noqa: E501
             },
-            "download_files": ['darwin_31012_test_download_files.txt']
+            "download_files": [f'{PLATFORM}_{PYTHON_VERSION.replace(".", "")}_test_download_files.txt']  # noqa: E501
         }
     }
 
