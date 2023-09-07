@@ -26,4 +26,10 @@ ENV AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
 ARG AWS_DEFAULT_REGION
 ENV AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION
 
+# Unit tests
+RUN pytest --ignore=nomad/tests/integration
+
+# Integration tests
+WORKDIR nomad/tests/integration
 RUN pytest
+WORKDIR ./nomad
