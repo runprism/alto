@@ -8,7 +8,6 @@ RUN apt-get update && \
     add-apt-repository -y ppa:deadsnakes/ppa
 
 ARG PYTHON_VERSION
-ENV PYTHON_VERSION=$PYTHON_VERSION
 RUN apt-get update && \
     apt-get install -y $PYTHON_VERSION python3-distutils python3-pip python3-apt
 

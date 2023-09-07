@@ -1,8 +1,8 @@
-my_cloud_agent:
+my_cloud_agent-{{ __platform__ }}-{{ __version__ }}:
   type: ec2
   instance_type: t2.micro
   entrypoint:
     type: script
-    cmd: python main.py --output-name test_download_files
+    cmd: python main.py --output-name test_download_files --python-version {{ __version__ }} --platform {{ __platform__ }}
   download_files:
-    - download_files.txt
+    - "{{ __platform__ }}_{{ __version__.replace('.', '') }}_test_download_files.txt"

@@ -9,6 +9,7 @@ from jinja2 import Environment, FileSystemLoader
 import os
 import yaml
 from typing import Any, Dict, Optional
+import sys
 
 
 # Class definition
@@ -74,6 +75,8 @@ class YmlParser:
 
         # Store the path of the file itself in `__file__`
         self.globals["__file__"] = str(self.fpath)
+        self.globals["__version__"] = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"  # noqa: E501
+        self.globals["__platform__"] = sys.platform
 
         # Update template globals with inputted function dictinoary
         jinja_template.globals.update(func_dict)

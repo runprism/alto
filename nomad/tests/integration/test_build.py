@@ -11,6 +11,10 @@ from nomad.tests.integration.utils import (
     delete_s3_file,
     cli_runner,
 )
+from nomad.constants import (
+    PYTHON_VERSION,
+    PLATFORM,
+)
 
 
 # Constants
@@ -29,14 +33,15 @@ def _build_integration_test(
     os.chdir(test_path)
 
     # Delete file in S3, if it exists
-    file_s3_uri = f"s3://nomad-dev-tests/tests/{fname_name}.txt"
+    output_key = f"{PLATFORM}_{PYTHON_VERSION}_{fname_name}".replace(".", "")
+    file_s3_uri = f"s3://nomad-dev-tests/tests/{output_key}.txt"
     delete_s3_file(file_s3_uri)
 
     # Invoke the `build` command
     proc = cli_runner(["build", "-f", "nomad.yml", "--no-delete-success", "--no-delete-failure"])  # noqa: E501
 
     # Check if EC2 resources exist
-    resource_name = f"my_cloud_agent-{os.environ.get('PYTHON_VERSION')}"
+    resource_name = f"my_cloud_agent-{PLATFORM}-{PYTHON_VERSION}"
     resources = _resources_exist(resource_name)
     assert resources["key_pair"]
     assert resources["security_group"]
@@ -45,7 +50,7 @@ def _build_integration_test(
 
     # Check output
     test_output = s3_file_exists(file_s3_uri)
-    expected_output = f"Hello world from our `{fname_name}` test case!"
+    expected_output = f"Hello world from our `{PLATFORM}.{PYTHON_VERSION}.{fname_name}` test case!"  # noqa: E501
     assert test_output == expected_output
 
 

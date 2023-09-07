@@ -1,4 +1,4 @@
-bad_cloud_agent-{{ env('PYTHON_VERSION') }}:
+bad_cloud_agent-{{ __platform__ }}-{{ __version__ }}:
   type: ec2
   instance_type: t2.micro
   requirements: requirements.txt
