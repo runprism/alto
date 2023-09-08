@@ -1059,6 +1059,10 @@ class Ec2(Agent):
             # A return code of 8 indicates that the SSH connection failed. Try
             # whitelisting the current IP and try again.
             if returncode == 8:
+                # For mypy
+                if self.security_group_id is None:
+                    raise ValueError("`security_group_id` is still None!")
+
                 self.check_ingress_ip(self.ec2_client, self.security_group_id)
                 _, err, returncode = self.stream_logs(
                     cmd, nomad.ui.AGENT_WHICH_BUILD, "build"
