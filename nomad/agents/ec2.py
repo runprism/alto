@@ -502,7 +502,8 @@ class Ec2(Agent):
     def add_ingress_rule(self,
         ec2_client: Any,
         security_group_id: str,
-        external_ip: str
+        external_ip: str,
+        any_ip: bool = False
     ):
         """
         Add an ingress rule that allows SSH traffic from `external_ip`
@@ -518,21 +519,28 @@ class Ec2(Agent):
 
         # Add rule
         if ip_address_type == IpAddressType('ipv4'):
+            if not any_ip:
+                ip_ranges = {'CidrIp': f'{external_ip}/32'}
+            else:
+                ip_ranges = {'CidrIp': '0.0.0.0/0'}
             ip_permissions = [
                 {
                     'IpProtocol': 'tcp',
                     'FromPort': 22,
                     'ToPort': 22,
-                    'IpRanges': [{'CidrIp': f'{external_ip}/32'}]
+                    'IpRanges': [ip_ranges]
                 },
             ]
+
+        # We've had problems in the past with SSHing into an EC2 instance from IPv6
+        # addresses. Therefore, just default to allowing SSH connections from any IP.
         else:
             ip_permissions = [
                 {
                     'IpProtocol': 'tcp',
                     'FromPort': 22,
                     'ToPort': 22,
-                    'Ipv6Ranges': [{'CidrIpv6': '0.0.0.0/0'}]
+                    'Ipv6Ranges': [{'CidrIpv6': '::/0'}]
                 },
             ]
 
@@ -591,7 +599,8 @@ class Ec2(Agent):
 
     def check_ingress_ip(self,
         ec2_client: Any,
-        security_group_id: str
+        security_group_id: str,
+        any_ip: bool = False,
     ):
         """
         Confirm that the ingress rule for `security_group_id` allows for SSH traffic
@@ -611,8 +620,13 @@ class Ec2(Agent):
         # Get current IP address
         external_ip = urllib.request.urlopen('https://ident.me').read().decode('utf8')
         external_ip_type = self.check_ip_address_type(external_ip)
+        if external_ip_type == IpAddressType('ipv4') and any_ip:
+            external_ip = "0.0.0.0/0"
+        elif external_ip_type == IpAddressType('ipv6') and any_ip:
+            external_ip = "::/0"
 
         # Check if IP is in ingress rules
+        ip_allowed = False
         for ingress_permissions in curr_sg["IpPermissions"]:
 
             # Look at SSH protocols only
@@ -622,24 +636,24 @@ class Ec2(Agent):
                 and ingress_permissions["ToPort"] == 22  # noqa: W503
             ):
                 # Check if SSH traffic from the current IP address is allowed
-                ip_allowed = False
                 if external_ip_type == IpAddressType('ipv4'):
                     ip_ranges = ingress_permissions["IpRanges"]
                     for ipr in ip_ranges:
-                        if external_ip in ipr["CidrIp"]:
+                        if f"{external_ip}/32" in ipr["CidrIp"]:
                             ip_allowed = True
                 else:
                     ip_ranges = ingress_permissions["Ipv6Ranges"]
                     for ipr in ip_ranges:
-                        if external_ip in ipr["CidrIpv6"]:
+                        if f"{external_ip}/128" in ipr["CidrIpv6"]:
                             ip_allowed = True
 
         # If SSH traffic from the current IP address it not allowed, then authorize it.
-        if not ip_allowed:
+        if (not ip_allowed) or any_ip:
             self.add_ingress_rule(
                 ec2_client,
                 security_group_id,
-                external_ip
+                external_ip,
+                any_ip,
             )
 
     def create_instance(self,
@@ -1042,8 +1056,16 @@ class Ec2(Agent):
                     f"{nomad.ui.AGENT_EVENT}{self.instance_name}{nomad.ui.AGENT_WHICH_BUILD}[build]{nomad.ui.RESET}  | {line.rstrip()}"  # noqa: E501
                 )
 
-            # If the return code is non-zero, then an error occurred. Delete all of the
-            # resources so that the user can try again.
+            # A return code of 8 indicates that the SSH connection failed. Try
+            # whitelisting the current IP and try again.
+            if returncode == 8:
+                self.check_ingress_ip(self.ec2_client, self.security_group_id)
+                _, err, returncode = self.stream_logs(
+                    cmd, nomad.ui.AGENT_WHICH_BUILD, "build"
+                )
+
+            # Otherwise, if the return code is non-zero, then an error occurred. Delete
+            # all of the resources so that the user can try again.
             if returncode != 0:
                 self.delete()
 

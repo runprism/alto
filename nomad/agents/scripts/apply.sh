@@ -15,6 +15,7 @@ do
 done
 
 # ssh into the project so that we can authenticate our key
+num_tries=0
 while true
 do
   	ssh -o "StrictHostKeyChecking no" -i "${pem_path}" "${user}@${public_dns_name}" exit 2>/dev/null 2>&1
@@ -22,8 +23,14 @@ do
         echo "SSH connection succeeded!"
         break
     else
-        echo "SSH connection failed. Retrying in 5 seconds..."
-        sleep 5
+		num_tries=$((num_tries+1))
+		if [ $num_tries -gt 5 ]; then
+			echo "SSH connection failed. Checking security ingress rules and trying again..."
+			exit 8
+		else
+        	echo "SSH connection failed. Retrying in 5 seconds..."
+        	sleep 5
+		fi
     fi
 done
 
