@@ -503,7 +503,7 @@ class Ec2(Agent):
         ec2_client: Any,
         security_group_id: str,
         external_ip: str,
-    ):
+    ) -> Optional[str]:
         """
         Add an ingress rule that allows SSH traffic from `external_ip`
 
@@ -519,8 +519,9 @@ class Ec2(Agent):
         # Add rule
         if ip_address_type == IpAddressType('ipv4'):
             if not self.args.whitelist_all:
-                ip_ranges = {'CidrIp': f'{external_ip}/16'}
+                ip_ranges = {'CidrIp': f'{external_ip}/32'}
             else:
+                external_ip = "0.0.0.0"
                 ip_ranges = {'CidrIp': '0.0.0.0/0'}
             ip_permissions = [
                 {
@@ -543,10 +544,18 @@ class Ec2(Agent):
                 },
             ]
 
-        _ = ec2_client.authorize_security_group_ingress(
-            GroupId=security_group_id,
-            IpPermissions=ip_permissions
-        )
+        try:
+            _ = ec2_client.authorize_security_group_ingress(
+                GroupId=security_group_id,
+                IpPermissions=ip_permissions
+            )
+            return external_ip
+
+        # If the rule already exists, then we're all gucci
+        except botocore.exceptions.ClientError as e:
+            if "the specified rule" in str(e) and "already exists" in str(e):
+                return None
+            raise e
 
     def create_new_security_group(self,
         ec2_client: Any,
@@ -599,10 +608,17 @@ class Ec2(Agent):
     def check_ingress_ip(self,
         ec2_client: Any,
         security_group_id: str,
-    ):
+    ) -> Optional[str]:
         """
         Confirm that the ingress rule for `security_group_id` allows for SSH traffic
         from the user's IP address.
+
+        args:
+            ec2_client: boto3 EC2 client
+            security_group_id: security group ID
+        returns:
+            None if the current IP address is already in the security groups ingress
+            rules; otherwise the IP address that was added
         """
         # Get security group
         security_groups = ec2_client.describe_security_groups()["SecurityGroups"]
@@ -618,10 +634,6 @@ class Ec2(Agent):
         # Get current IP address
         external_ip = urllib.request.urlopen('https://ident.me').read().decode('utf8')
         external_ip_type = self.check_ip_address_type(external_ip)
-        if external_ip_type == IpAddressType('ipv4') and self.args.whitelist_all:
-            external_ip = "0.0.0.0/0"
-        elif external_ip_type == IpAddressType('ipv6') and self.args.whitelist_all:
-            external_ip = "::/0"
 
         # Check if IP is in ingress rules
         ip_allowed = False
@@ -635,23 +647,26 @@ class Ec2(Agent):
             ):
                 # Check if SSH traffic from the current IP address is allowed
                 if external_ip_type == IpAddressType('ipv4'):
+                    ip_search = "0.0.0.0/0" if self.args.whitelist_all else f"{external_ip}/32"  # noqa: E501
                     ip_ranges = ingress_permissions["IpRanges"]
                     for ipr in ip_ranges:
-                        if f"{external_ip}/16" in ipr["CidrIp"]:
+                        if ip_search in ipr["CidrIp"]:
                             ip_allowed = True
                 else:
+                    ip_search = "::/0"
                     ip_ranges = ingress_permissions["Ipv6Ranges"]
                     for ipr in ip_ranges:
-                        if f"{external_ip}/128" in ipr["CidrIpv6"]:
+                        if ip_search in ipr["CidrIpv6"]:
                             ip_allowed = True
 
         # If SSH traffic from the current IP address it not allowed, then authorize it.
-        if (not ip_allowed) or self.args.whitelist_all:
-            self.add_ingress_rule(
+        if not ip_allowed:
+            return self.add_ingress_rule(
                 ec2_client,
                 security_group_id,
                 external_ip,
             )
+        return None
 
     def create_instance(self,
         ec2_client: Any,
@@ -1053,14 +1068,35 @@ class Ec2(Agent):
                     f"{nomad.ui.AGENT_EVENT}{self.instance_name}{nomad.ui.AGENT_WHICH_BUILD}[build]{nomad.ui.RESET}  | {line.rstrip()}"  # noqa: E501
                 )
 
-            # A return code of 8 indicates that the SSH connection failed. Try
+            # A return code of 8 indicates that the SSH connection timed out. Try
             # whitelisting the current IP and try again.
             if returncode == 8:
                 # For mypy
                 if self.security_group_id is None:
                     raise ValueError("`security_group_id` is still None!")
+                logger.info(
+                    f"{nomad.ui.AGENT_EVENT}{self.instance_name}{nomad.ui.AGENT_WHICH_BUILD}[build]{nomad.ui.RESET}  | SSH connection timed out...checking security group ingress rules and trying again"  # noqa: E501
+                )
 
-                self.check_ingress_ip(self.ec2_client, self.security_group_id)
+                # Add the current IP to the security ingress rules
+                added_ip = self.check_ingress_ip(
+                    self.ec2_client, self.security_group_id
+                )
+
+                # If the current IP address is already whitelisted, then just add
+                # 0.0.0.0/0 to the ingress rules.
+                if added_ip is None:
+                    self.args.whitelist_all = True
+                    logger.info(
+                        f"{nomad.ui.AGENT_EVENT}{self.instance_name}{nomad.ui.AGENT_WHICH_BUILD}[build]{nomad.ui.RESET}  | Current IP address already whitelisted...whitelisting 0.0.0.0/0"  # noqa: E501
+                    )
+                    self.add_ingress_rule(
+                        self.ec2_client,
+                        self.security_group_id,
+                        "0.0.0.0",
+                    )
+
+                # Try again
                 _, err, returncode = self.stream_logs(
                     cmd, nomad.ui.AGENT_WHICH_BUILD, "build"
                 )
