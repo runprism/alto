@@ -503,7 +503,6 @@ class Ec2(Agent):
         ec2_client: Any,
         security_group_id: str,
         external_ip: str,
-        any_ip: bool = False
     ):
         """
         Add an ingress rule that allows SSH traffic from `external_ip`
@@ -519,7 +518,7 @@ class Ec2(Agent):
 
         # Add rule
         if ip_address_type == IpAddressType('ipv4'):
-            if not any_ip:
+            if not self.args.whitelist_all:
                 ip_ranges = {'CidrIp': f'{external_ip}/32'}
             else:
                 ip_ranges = {'CidrIp': '0.0.0.0/0'}
@@ -600,7 +599,6 @@ class Ec2(Agent):
     def check_ingress_ip(self,
         ec2_client: Any,
         security_group_id: str,
-        any_ip: bool = False,
     ):
         """
         Confirm that the ingress rule for `security_group_id` allows for SSH traffic
@@ -620,9 +618,9 @@ class Ec2(Agent):
         # Get current IP address
         external_ip = urllib.request.urlopen('https://ident.me').read().decode('utf8')
         external_ip_type = self.check_ip_address_type(external_ip)
-        if external_ip_type == IpAddressType('ipv4') and any_ip:
+        if external_ip_type == IpAddressType('ipv4') and self.args.whitelist_all:
             external_ip = "0.0.0.0/0"
-        elif external_ip_type == IpAddressType('ipv6') and any_ip:
+        elif external_ip_type == IpAddressType('ipv6') and self.args.whitelist_all:
             external_ip = "::/0"
 
         # Check if IP is in ingress rules
@@ -648,12 +646,11 @@ class Ec2(Agent):
                             ip_allowed = True
 
         # If SSH traffic from the current IP address it not allowed, then authorize it.
-        if (not ip_allowed) or any_ip:
+        if (not ip_allowed) or self.args.whitelist_all:
             self.add_ingress_rule(
                 ec2_client,
                 security_group_id,
                 external_ip,
-                any_ip,
             )
 
     def create_instance(self,

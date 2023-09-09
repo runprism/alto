@@ -100,12 +100,20 @@ def init(type: Optional[str], file: Optional[str], log_level: str):
     help="""Set the log level. [dim]\[default: info][/]""",  # noqa
     required=False
 )
-def apply(file: str, name: str, log_level: str):
+@click.option(
+    '--whitelist-all',
+    is_flag=True,
+    default=False,
+    help="""Whitelist all IP addresses. If `False`, then only whitelist your current IP address. [dim]\[default: False][/]""",  # noqa
+    required=False,
+)
+def apply(file: str, name: str, log_level: str, whitelist_all: bool):
     args = argparse.Namespace()
     args.file = file
     args.name = name
     args.wkdir = Path(os.path.abspath(file)).parent
     args.log_level = log_level
+    args.whitelist_all = whitelist_all
 
     # Apply task
     task = apply_task.ApplyTask(args)
@@ -145,12 +153,20 @@ def apply(file: str, name: str, log_level: str):
     help="""Preserve the cloud resources after a successful run. [dim]\[default: False][/]""",  # noqa
     required=False
 )
+@click.option(
+    '--whitelist-all',
+    is_flag=True,
+    default=False,
+    help="""Whitelist all IP addresses. If `False`, then only whitelist your current IP address. [dim]\[default: False][/]""",  # noqa
+    required=False,
+)
 def run(
     file: str,
     name: str,
     log_level: str,
     no_delete_failure: bool,
-    no_delete_success: bool
+    no_delete_success: bool,
+    whitelist_all: bool,
 ):
     args = argparse.Namespace()
     args.file = file
@@ -159,6 +175,7 @@ def run(
     args.log_level = log_level
     args.no_delete_failure = no_delete_failure
     args.no_delete_success = no_delete_success
+    args.whitelist_all = whitelist_all
 
     # Run task
     task = run_task.RunTask(args)
@@ -197,12 +214,20 @@ def run(
     help="""Preserve the cloud resources after a successful build. [dim]\[default: False][/]""",  # noqa
     required=False
 )
+@click.option(
+    '--whitelist-all',
+    is_flag=True,
+    default=False,
+    help="""Whitelist all IP addresses. If `False`, then only whitelist your current IP address. [dim]\[default: False][/]""",  # noqa
+    required=False,
+)
 def build(
     file: str,
     name: str,
     log_level: str,
     no_delete_failure: bool,
     no_delete_success: bool,
+    whitelist_all: bool,
 ):
     args = argparse.Namespace()
     args.file = file
@@ -211,6 +236,7 @@ def build(
     args.log_level = log_level
     args.no_delete_failure = no_delete_failure
     args.no_delete_success = no_delete_success
+    args.whitelist_all = whitelist_all
 
     # Build task
     task = build_task.BuildTask(args)
