@@ -519,7 +519,7 @@ class Ec2(Agent):
         # Add rule
         if ip_address_type == IpAddressType('ipv4'):
             if not self.args.whitelist_all:
-                ip_ranges = {'CidrIp': f'{external_ip}/32'}
+                ip_ranges = {'CidrIp': f'{external_ip}/16'}
             else:
                 ip_ranges = {'CidrIp': '0.0.0.0/0'}
             ip_permissions = [
@@ -637,7 +637,7 @@ class Ec2(Agent):
                 if external_ip_type == IpAddressType('ipv4'):
                     ip_ranges = ingress_permissions["IpRanges"]
                     for ipr in ip_ranges:
-                        if f"{external_ip}/32" in ipr["CidrIp"]:
+                        if f"{external_ip}/16" in ipr["CidrIp"]:
                             ip_allowed = True
                 else:
                     ip_ranges = ingress_permissions["Ipv6Ranges"]
