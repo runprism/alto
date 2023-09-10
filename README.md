@@ -12,7 +12,7 @@
 </div>
 
 # Welcome to Nomad!
-Nomad is the easiest way to run any code (functions, scripts, jupyter notebooks, or entire projects) on any cloud environment!
+Nomad is the easiest way to run any code (functions, scripts, Jupyter notebooks, or entire projects) on any cloud environment!
 
 ## Getting Started
 
@@ -56,7 +56,7 @@ $ nomad build -f nomad.yml
 
 Alternatively, you could use the `nomad apply` command to first build the cloud environment and then use `nomad run` to actually run the code.
 
-Check out our documentation to see the full list of CLI command and their usage!
+Check out our documentation (coming soon!) to see the full list of CLI command and their usage!
 
 ## Cloud environments
 Nomad currently supports the following cloud environments (which we call "Agents"):
