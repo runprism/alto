@@ -2,6 +2,12 @@
   <img src="https://github.com/runprism/nomad/raw/setup/.github/logo.png" alt="Nomad logo" height="200"/>
 </p>
 
+<div align="center">
+
+[![CI Linux](https://github.com/runprism/nomad/actions/workflows/ci-linux.yml/badge.svg)](https://github.com/runprism/nomad/actions/workflows/ci-linux.yml)
+[![CI MacOS](https://github.com/runprism/nomad/actions/workflows/ci-macos.yml/badge.svg)](https://github.com/runprism/nomad/actions/workflows/ci-macos.yml)
+[![Checked with mypy](http://www.mypy-lang.org/static/mypy_badge.svg)](http://mypy-lang.org/)
+
 
 </div>
 
