@@ -12,7 +12,8 @@
 </div>
 
 # Welcome to Nomad!
-Nomad is the easiest way to run any code (functions, scripts, Jupyter notebooks, or entire projects) on any cloud environment!
+Nomad is the easiest way to run any code on the cloud! Nomad is designed to be used with Prism projects, but it can be used to any arbitrary code (e.g., functions, scripts, Jupyter notebooks, or entire projects)!
+
 
 ## Getting Started
 
