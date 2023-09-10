@@ -1,0 +1,2 @@
+recursive-include nomad/templates *.png *.svg *.exists *.ico *.txt *.ipynb *.py *.sql *.yml *.html *.md .gitkeep .gitignore
+recursive-include nomad/agents *.sh
