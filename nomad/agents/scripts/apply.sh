@@ -22,7 +22,7 @@ do
         echo "SSH connection succeeded!"
         break
     else
-		if [ "$errormessage" = *"Operation timed out"* ]; then
+		if [ "$errormessage" == *"Operation timed out"* ]; then
 			echo "SSH connection failed."
 			exit 8
 		else
