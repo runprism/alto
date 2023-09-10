@@ -1,11 +1,6 @@
 name: CI Linux
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'nomad/**'
   pull_request:
     branches:
       - main
