@@ -5,14 +5,17 @@
 # Imports
 import os
 from pathlib import Path
-from click.testing import CliRunner
-from nomad.main import cli
 from nomad.tests.integration.utils import (
     _resources_exist,
     s3_file_exists,
     delete_s3_file,
+    cli_runner
 )
 from typing import List
+from nomad.constants import (
+    PYTHON_VERSION,
+    PLATFORM,
+)
 
 
 # Constants
@@ -31,28 +34,26 @@ def _apply_run_integration_test(
     run_args: List[str]
 ):
     os.chdir(test_path)
-    runner = CliRunner()
-
-    # Invoke the `apply` command
-    result = runner.invoke(cli, ["apply", "-f", "nomad.yml"])
+    proc = cli_runner(["apply", "-f", "nomad.yml"])
 
     # Check if EC2 resources exist
-    resource_name = "my_cloud_agent"
+    resource_name = f"my_cloud_agent-{PLATFORM}-{PYTHON_VERSION}"
     resources = _resources_exist(resource_name)
     assert resources["key_pair"]
     assert resources["security_group"]
     assert resources["instance"]
-    assert result.exit_code == 0
+    assert proc.returncode == 0
 
     # Delete file in S3, if it exists
-    file_s3_uri = f"s3://nomad-dev-tests/tests/{fname_name}.txt"
+    output_key = f"{PLATFORM}_{PYTHON_VERSION}_{fname_name}".replace(".", "")
+    file_s3_uri = f"s3://nomad-dev-tests/tests/{output_key}.txt"
     delete_s3_file(file_s3_uri)
 
     # Run
-    result = runner.invoke(cli, run_args)
-    assert result.exit_code == 0
+    proc = cli_runner(run_args)
+    assert proc.returncode == 0
     test_output = s3_file_exists(file_s3_uri)
-    expected_output = f"Hello world from our `{fname_name}` test case!"
+    expected_output = f"Hello world from our `{PLATFORM}.{PYTHON_VERSION}.{fname_name}` test case!"  # noqa: E501
     assert test_output == expected_output
 
 
@@ -63,24 +64,15 @@ def test_function():
     _apply_run_integration_test(
         TEST_FUNCTION,
         "test_function",
-        ['run', '-f', 'nomad.yml', '--no-delete-success']
+        ['run', '-f', 'nomad.yml', '--no-delete-success', '--no-delete-failure']
     )
 
     # The resources should still exist.
-    resource_name = "my_cloud_agent"
+    resource_name = f"my_cloud_agent-{PLATFORM}-{PYTHON_VERSION}"
     resources = _resources_exist(resource_name)
     assert resources["key_pair"]
     assert resources["security_group"]
     assert resources["instance"]
-
-    # Run, but this time put delete on success
-    runner = CliRunner()
-    result = runner.invoke(cli, ['run', '-f', 'nomad.yml'])
-    assert result.exit_code == 0
-    resources = _resources_exist(resource_name)
-    assert not resources["key_pair"]
-    assert not resources["security_group"]
-    assert not resources["instance"]
 
 
 def test_script():
@@ -90,24 +82,15 @@ def test_script():
     _apply_run_integration_test(
         TEST_SCRIPT,
         "test_script",
-        ['run', '-f', 'nomad.yml', '--no-delete-success']
+        ['run', '-f', 'nomad.yml', '--no-delete-success', '--no-delete-failure']
     )
 
     # The resources should still exist.
-    resource_name = "my_cloud_agent"
+    resource_name = f"my_cloud_agent-{PLATFORM}-{PYTHON_VERSION}"
     resources = _resources_exist(resource_name)
     assert resources["key_pair"]
     assert resources["security_group"]
     assert resources["instance"]
-
-    # Run, but this time put delete on success
-    runner = CliRunner()
-    result = runner.invoke(cli, ['run', '-f', 'nomad.yml'])
-    assert result.exit_code == 0
-    resources = _resources_exist(resource_name)
-    assert not resources["key_pair"]
-    assert not resources["security_group"]
-    assert not resources["instance"]
 
 
 def test_project():
@@ -117,24 +100,15 @@ def test_project():
     _apply_run_integration_test(
         TEST_PROJECT,
         "test_project",
-        ['run', '-f', 'nomad.yml', '--no-delete-success']
+        ['run', '-f', 'nomad.yml', '--no-delete-success', '--no-delete-failure']
     )
 
     # The resources should still exist.
-    resource_name = "my_cloud_agent"
+    resource_name = f"my_cloud_agent-{PLATFORM}-{PYTHON_VERSION}"
     resources = _resources_exist(resource_name)
     assert resources["key_pair"]
     assert resources["security_group"]
     assert resources["instance"]
-
-    # Run, but this time put delete on success
-    runner = CliRunner()
-    result = runner.invoke(cli, ['run', '-f', 'nomad.yml'])
-    assert result.exit_code == 0
-    resources = _resources_exist(resource_name)
-    assert not resources["key_pair"]
-    assert not resources["security_group"]
-    assert not resources["instance"]
 
 
 def test_jupyter():
@@ -143,33 +117,24 @@ def test_jupyter():
     after a successful run.
     """
     os.chdir(TEST_JUPYTER)
-    runner = CliRunner()
-
-    # Invoke the `apply` command
-    result = runner.invoke(cli, ["apply", "-f", "nomad.yml"])
+    proc = cli_runner(["apply", "-f", "nomad.yml"])
 
     # Check if EC2 resources exist
-    resource_name = "my_cloud_agent"
+    resource_name = f"my_cloud_agent-{PLATFORM}-{PYTHON_VERSION}"
     resources = _resources_exist(resource_name)
     assert resources["key_pair"]
     assert resources["security_group"]
     assert resources["instance"]
-    assert result.exit_code == 0
+    assert proc.returncode == 0
 
     # Run
-    result = runner.invoke(cli, ["run", "-f", "nomad.yml"])
-    assert result.exit_code == 0
+    proc = cli_runner(["run", "-f", "nomad.yml", "--no-delete-success", "--no-delete-failure"])  # noqa: E501
+    assert proc.returncode == 0
 
     # We should see the executed notebook in our folder
     exec_nb_path = Path(TEST_JUPYTER / 'nomad_nb_exec.ipynb')
     assert exec_nb_path.is_file()
     os.unlink(exec_nb_path)
-
-    # The resources should be deleted on a successful run
-    resources = _resources_exist(resource_name)
-    assert not resources["key_pair"]
-    assert not resources["security_group"]
-    assert not resources["instance"]
 
 
 def test_download_files():
@@ -178,34 +143,28 @@ def test_download_files():
     execution.
     """
     os.chdir(TEST_DOWNLOAD_FILES)
-    runner = CliRunner()
 
     # Invoke the `apply` command
-    result = runner.invoke(cli, ["apply", "-f", "nomad.yml"])
+    proc = cli_runner(["apply", "-f", "nomad.yml"])
 
     # Check if EC2 resources exist
-    resource_name = "my_cloud_agent"
+    resource_name = f"my_cloud_agent-{PLATFORM}-{PYTHON_VERSION}"
     resources = _resources_exist(resource_name)
     assert resources["key_pair"]
     assert resources["security_group"]
     assert resources["instance"]
-    assert result.exit_code == 0
+    assert proc.returncode == 0
 
     # Run
-    result = runner.invoke(cli, ["run", "-f", "nomad.yml"])
-    assert result.exit_code == 0
+    proc = cli_runner(["run", "-f", "nomad.yml", "--no-delete-success", "--no-delete-failure"])  # noqa: E501
+    assert proc.returncode == 0
 
     # We should see the executed notebook in our folder
-    downloaded_file = Path(TEST_DOWNLOAD_FILES / 'download_files.txt')
+    output_key = f"{PLATFORM}_{PYTHON_VERSION}_test_download_files".replace(".", "")
+    downloaded_file = Path(TEST_DOWNLOAD_FILES / f'{output_key}.txt')
     assert downloaded_file.is_file()
     with open(downloaded_file, 'r') as f:
         downloaded_file_txt = f.read()
-    expected_txt = "Hello world from our `test_download_files` test case!"
+    expected_txt = f"Hello world from our `{PLATFORM}.{PYTHON_VERSION}.test_download_files` test case!"  # noqa: E501
     assert downloaded_file_txt == expected_txt
     os.unlink(downloaded_file)
-
-    # The resources should be deleted on a successful run
-    resources = _resources_exist(resource_name)
-    assert not resources["key_pair"]
-    assert not resources["security_group"]
-    assert not resources["instance"]

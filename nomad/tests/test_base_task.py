@@ -54,7 +54,8 @@ def test_normal_conf():
         "env": {
             "ENV_VAR_1": "VALUE1",
             "ENV_VAR_2": "VALUE2",
-        }
+        },
+        "download_files": [],
     }
     assert expected_conf == task.conf
 

@@ -1,0 +1,13 @@
+my_cloud_agent:
+  type: ec2
+  instance_type: t2.micro
+  requirements: requirements.txt
+  entrypoint:
+    type: script
+    src: src/
+    cmd: python <script name>.py --ARG1 VALUE1
+  env:
+    ENV_VAR_1: '{{ env("ENV_VAR_1") }}'
+  download_files:
+    - ...
+    - ...

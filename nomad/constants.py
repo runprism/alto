@@ -5,12 +5,15 @@ Constants used throughout the Nomad project
 # Imports
 import os
 from pathlib import Path
+import sys
 
 
 # Nomad internal folder
-INTERNAL_FOLDER = Path(os.path.expanduser("~/.nomad"))
+INTERNAL_FOLDER = Path(os.environ.get(
+    "__NOMAD_INTERNAL_FOLDER__", Path(os.path.expanduser("~/.nomad"))
+))
 if not INTERNAL_FOLDER.is_dir():
-    INTERNAL_FOLDER.mkdir(parents=True)
+    INTERNAL_FOLDER.mkdir(mode=0o770, parents=True, exist_ok=True)
 
 
 # Logger name
@@ -201,3 +204,8 @@ EC2_SUPPORTED_INSTANCE_TYPES = [
     'u-9tb1.metal',
     'u-12tb1.metal',
 ]
+
+
+# Sys info
+PLATFORM = sys.platform
+PYTHON_VERSION = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"  # noqa: E501

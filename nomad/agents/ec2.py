@@ -33,7 +33,6 @@ import re
 import time
 from typing import Any, Dict, List, Optional
 import subprocess
-import shutil
 import urllib.request
 import stat
 
@@ -143,7 +142,7 @@ class Ec2(Agent):
 
     def aws_cli(self) -> int:
         """
-        Confirms that the user has configured their AWS CLI
+        Confirms that the user has AWS credentials and can use the boto3 API
         args:
             None
         returns:
@@ -151,14 +150,16 @@ class Ec2(Agent):
         raises:
             pipe.exceptions.RuntimeException() if user has not configured AWS CLI
         """
-        system_return = shutil.which('aws')
-        if system_return is None:
+        s3 = boto3.resource('s3')
+        try:
+            s3.buckets.all()
+            return 0
+        except botocore.exceptions.NoCredentialsError:
             msg_list = [
-                "AWS CLI is not properly configured. Consult AWS documentation:",
-                "https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html"    # noqa: E501
+                "AWS credentials not found. Consult Boto3 documentation:",
+                "https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html"    # noqa: E501
             ]
             raise ValueError('\n'.join(msg_list))
-        return 0
 
     def create_key_pair(self,
         ec2_client: Any,
@@ -200,6 +201,10 @@ class Ec2(Agent):
             )
             raise e
 
+        # If, for whatever reason, the file doesn't exist, throw an error
+        if not Path(directory / f"{key_name}.pem").is_file():
+            raise ValueError("Could not find newly created PEM key!")
+
         # Change the permissions
         os.chmod(Path(directory / f"{key_name}.pem"), stat.S_IREAD)
 
@@ -212,7 +217,7 @@ class Ec2(Agent):
 
     def write_json(self, data: Dict[str, Dict[str, Any]]):
         """
-        Write `data` to ~/.prism/ec2.json
+        Write `data` to ~/.nomad/ec2.json
 
         args:
             data: data to write to JSON
@@ -222,7 +227,7 @@ class Ec2(Agent):
 
     def update_json(self, data: Dict[str, Dict[str, Any]]):
         """
-        Update ~/.prism/ec2.json
+        Update ~/.nomad/ec2.json
 
         args:
             ...
@@ -372,7 +377,6 @@ class Ec2(Agent):
         return resources
 
     def check_instance_data(self,
-        ec2_client: Any,
         instance_id: Optional[str]
     ) -> Dict[str, Any]:
         """
@@ -390,6 +394,7 @@ class Ec2(Agent):
                 "state": ...,
             }
         """
+        ec2_client = boto3.client("ec2")
         results: Dict[str, Any] = {}
 
         # If the instance is None, then return an empty dictionary. This happens if the
@@ -440,7 +445,7 @@ class Ec2(Agent):
         # If the instance is pending, then wait until the state is running
         elif state == State.PENDING:
             while state == State.PENDING:
-                results = self.check_instance_data(ec2_client, instance_id)
+                results = self.check_instance_data(instance_id)
                 state = results["state"]
                 time.sleep(1)
             return state
@@ -450,7 +455,7 @@ class Ec2(Agent):
         elif state in [State.STOPPED, State.STOPPING]:
             ec2_client.start_instances(InstanceIds=instance_id)
             while state != State.RUNNING:
-                results = self.check_instance_data(ec2_client, instance_id)
+                results = self.check_instance_data(instance_id)
                 time.sleep(1)
                 state = results["state"]
             return state
@@ -497,8 +502,8 @@ class Ec2(Agent):
     def add_ingress_rule(self,
         ec2_client: Any,
         security_group_id: str,
-        external_ip: str
-    ):
+        external_ip: str,
+    ) -> Optional[str]:
         """
         Add an ingress rule that allows SSH traffic from `external_ip`
 
@@ -513,28 +518,44 @@ class Ec2(Agent):
 
         # Add rule
         if ip_address_type == IpAddressType('ipv4'):
+            if not self.args.whitelist_all:
+                ip_ranges = {'CidrIp': f'{external_ip}/32'}
+            else:
+                external_ip = "0.0.0.0"
+                ip_ranges = {'CidrIp': '0.0.0.0/0'}
             ip_permissions = [
                 {
                     'IpProtocol': 'tcp',
                     'FromPort': 22,
                     'ToPort': 22,
-                    'IpRanges': [{'CidrIp': f'{external_ip}/32'}]
+                    'IpRanges': [ip_ranges]
                 },
             ]
+
+        # We've had problems in the past with SSHing into an EC2 instance from IPv6
+        # addresses. Therefore, just default to allowing SSH connections from any IP.
         else:
             ip_permissions = [
                 {
                     'IpProtocol': 'tcp',
                     'FromPort': 22,
                     'ToPort': 22,
-                    'Ipv6Ranges': [{'CidrIpv6': f'{external_ip}/128'}]
+                    'Ipv6Ranges': [{'CidrIpv6': '::/0'}]
                 },
             ]
 
-        _ = ec2_client.authorize_security_group_ingress(
-            GroupId=security_group_id,
-            IpPermissions=ip_permissions
-        )
+        try:
+            _ = ec2_client.authorize_security_group_ingress(
+                GroupId=security_group_id,
+                IpPermissions=ip_permissions
+            )
+            return external_ip
+
+        # If the rule already exists, then we're all gucci
+        except botocore.exceptions.ClientError as e:
+            if "the specified rule" in str(e) and "already exists" in str(e):
+                return None
+            raise e
 
     def create_new_security_group(self,
         ec2_client: Any,
@@ -586,11 +607,18 @@ class Ec2(Agent):
 
     def check_ingress_ip(self,
         ec2_client: Any,
-        security_group_id: str
-    ):
+        security_group_id: str,
+    ) -> Optional[str]:
         """
         Confirm that the ingress rule for `security_group_id` allows for SSH traffic
         from the user's IP address.
+
+        args:
+            ec2_client: boto3 EC2 client
+            security_group_id: security group ID
+        returns:
+            None if the current IP address is already in the security groups ingress
+            rules; otherwise the IP address that was added
         """
         # Get security group
         security_groups = ec2_client.describe_security_groups()["SecurityGroups"]
@@ -608,6 +636,7 @@ class Ec2(Agent):
         external_ip_type = self.check_ip_address_type(external_ip)
 
         # Check if IP is in ingress rules
+        ip_allowed = False
         for ingress_permissions in curr_sg["IpPermissions"]:
 
             # Look at SSH protocols only
@@ -617,25 +646,27 @@ class Ec2(Agent):
                 and ingress_permissions["ToPort"] == 22  # noqa: W503
             ):
                 # Check if SSH traffic from the current IP address is allowed
-                ip_allowed = False
                 if external_ip_type == IpAddressType('ipv4'):
+                    ip_search = "0.0.0.0/0" if self.args.whitelist_all else f"{external_ip}/32"  # noqa: E501
                     ip_ranges = ingress_permissions["IpRanges"]
                     for ipr in ip_ranges:
-                        if external_ip in ipr["CidrIp"]:
+                        if ip_search in ipr["CidrIp"]:
                             ip_allowed = True
                 else:
+                    ip_search = "::/0"
                     ip_ranges = ingress_permissions["Ipv6Ranges"]
                     for ipr in ip_ranges:
-                        if external_ip in ipr["CidrIpv6"]:
+                        if ip_search in ipr["CidrIpv6"]:
                             ip_allowed = True
 
         # If SSH traffic from the current IP address it not allowed, then authorize it.
         if not ip_allowed:
-            self.add_ingress_rule(
+            return self.add_ingress_rule(
                 ec2_client,
                 security_group_id,
-                external_ip
+                external_ip,
             )
+        return None
 
     def create_instance(self,
         ec2_client: Any,
@@ -670,9 +701,9 @@ class Ec2(Agent):
 
             def _create_exception(resource):
                 return ValueError('\n'.join([
-                    f"{resource} exists, but ~/.prism/ec2.json file not found! This only happens if:",  # noqa: E501
+                    f"{resource} exists, but ~/.nomad/ec2.json file not found! This only happens if:",  # noqa: E501
                     f"    1. You manually created the {resource}",
-                    "    2. You deleted ~/.prism/ec2.json",
+                    "    2. You deleted ~/.nomad/ec2.json",
                     f"Delete the {resource} from EC2 and try again!"
                 ]))
 
@@ -696,9 +727,9 @@ class Ec2(Agent):
             else:
 
                 # If the key-pair exists, then the location of the PEM key path should
-                # be contained in ~/.prism/ec2.json. If it isn't, then either:
+                # be contained in ~/.nomad/ec2.json. If it isn't, then either:
                 #   1. The user manually created the key pair
-                #   2. The user deleted ~/.prism/ec2.json
+                #   2. The user deleted ~/.nomad/ec2.json
                 if not Path(INTERNAL_FOLDER / 'ec2.json').is_file():
                     raise _create_exception("key-pair")
                 pem_key_path = self.pem_key_path
@@ -785,7 +816,7 @@ class Ec2(Agent):
                 )
 
             # Instance data
-            resp = self.check_instance_data(ec2_client, instance_id)
+            resp = self.check_instance_data(instance_id)
 
             # If the instance exists but its key-name is not `instance_name` (this
             # really should never happen unless the user manually creates an EC2
@@ -804,10 +835,7 @@ class Ec2(Agent):
                     logger.info(
                         f"{log_prefix}  | Instance {log_instance_id_template.format(instance_id=instance_id)} is {log_pending_status}... checking again in 5 seconds"  # noqa: E501
                     )
-                    resp = self.check_instance_data(
-                        ec2_client,
-                        instance_id
-                    )
+                    resp = self.check_instance_data(instance_id)
                     time.sleep(5)
 
             # If the state exiss but has stopped, then restart it
@@ -1018,7 +1046,8 @@ class Ec2(Agent):
 
             # Build the shell command
             cmd = [
-                '/bin/sh', self.AGENT_APPLY_SCRIPT,
+                '/bin/bash',
+                self.AGENT_APPLY_SCRIPT,
                 '-r', str(requirements_txt_str),
                 '-p', str(pem_key_path),
                 '-u', user,
@@ -1039,8 +1068,41 @@ class Ec2(Agent):
                     f"{nomad.ui.AGENT_EVENT}{self.instance_name}{nomad.ui.AGENT_WHICH_BUILD}[build]{nomad.ui.RESET}  | {line.rstrip()}"  # noqa: E501
                 )
 
-            # If the return code is non-zero, then an error occurred. Delete all of the
-            # resources so that the user can try again.
+            # A return code of 8 indicates that the SSH connection timed out. Try
+            # whitelisting the current IP and try again.
+            if returncode == 8:
+                # For mypy
+                if self.security_group_id is None:
+                    raise ValueError("`security_group_id` is still None!")
+                logger.info(
+                    f"{nomad.ui.AGENT_EVENT}{self.instance_name}{nomad.ui.AGENT_WHICH_BUILD}[build]{nomad.ui.RESET}  | SSH connection timed out...checking security group ingress rules and trying again"  # noqa: E501
+                )
+
+                # Add the current IP to the security ingress rules
+                added_ip = self.check_ingress_ip(
+                    self.ec2_client, self.security_group_id
+                )
+
+                # If the current IP address is already whitelisted, then just add
+                # 0.0.0.0/0 to the ingress rules.
+                if added_ip is None:
+                    self.args.whitelist_all = True
+                    logger.info(
+                        f"{nomad.ui.AGENT_EVENT}{self.instance_name}{nomad.ui.AGENT_WHICH_BUILD}[build]{nomad.ui.RESET}  | Current IP address already whitelisted...whitelisting 0.0.0.0/0"  # noqa: E501
+                    )
+                    self.add_ingress_rule(
+                        self.ec2_client,
+                        self.security_group_id,
+                        "0.0.0.0",
+                    )
+
+                # Try again
+                _, err, returncode = self.stream_logs(
+                    cmd, nomad.ui.AGENT_WHICH_BUILD, "build"
+                )
+
+            # Otherwise, if the return code is non-zero, then an error occurred. Delete
+            # all of the resources so that the user can try again.
             if returncode != 0:
                 self.delete()
 
@@ -1080,7 +1142,7 @@ class Ec2(Agent):
 
         # The agent data should exist...Build the shell command
         cmd = [
-            '/bin/sh', self.AGENT_RUN_SCRIPT,
+            '/bin/bash', self.AGENT_RUN_SCRIPT,
             '-p', str(self.pem_key_path),
             '-u', 'ec2-user',
             '-n', self.public_dns_name,
@@ -1110,7 +1172,7 @@ class Ec2(Agent):
         # Logging styling
         if self.instance_name is None:
             logger.info(  # type: ignore
-                "Agent data not found! Did you manually delete the ~/.prism/ec2.json file?"  # noqa: E501
+                "Agent data not found! Did you manually delete the ~/.nomad/ec2.json file?"  # noqa: E501
             )
             return
 
@@ -1131,7 +1193,14 @@ class Ec2(Agent):
             self.ec2_client.delete_key_pair(
                 KeyName=self.key_name
             )
-            os.unlink(str(self.pem_key_path))
+            try:
+                os.unlink(str(self.pem_key_path))
+
+            # If this file never existed, then pass
+            except FileNotFoundError:
+                logger.info(
+                    f"{log_prefix} | Key-pair {log_key_pair} at {log_key_path} doesn't exist!"  # noqa: E501
+                )
 
         # Instance
         if self.instance_id is None:

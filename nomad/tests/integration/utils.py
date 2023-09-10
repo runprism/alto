@@ -4,10 +4,23 @@ Integration tests (i.e., full runs on micro EC2 instances).
 
 # Imports
 import boto3
-from typing import Optional
+import subprocess
+from typing import List, Optional
 
 
 # Tests
+def cli_runner(args: List[str]):
+    """
+    Invoke the CLI arguments using a subprocess process. This helps us debug our tests.
+    """
+    proc = subprocess.Popen(
+        ["nomad"] + args,
+        stdin=subprocess.PIPE,
+    )
+    proc.wait()
+    return proc
+
+
 def key_pair_exists(key_pair_name: str):
     """
     Check if key_pair with `key_pair_name` exists.

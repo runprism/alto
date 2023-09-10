@@ -3,12 +3,18 @@ Test cases for YmlParser class
 """
 
 # Imports
+from pathlib import Path
+from nomad.constants import (
+    PLATFORM,
+    PYTHON_VERSION,
+)
 from nomad.examples import EXAMPLES_DIR
 from nomad.parsers.yml import YmlParser
 
 
 # Constants
 EC2_EXAMPLES_DIR = EXAMPLES_DIR / 'ec2'
+INTEGRATION_TEST_DIR = Path(__file__).parent / 'integration'
 EC2_EXAMPLES = [
     EC2_EXAMPLES_DIR / 'additional_paths.yml',
     EC2_EXAMPLES_DIR / 'basic_function.yml',
@@ -17,6 +23,7 @@ EC2_EXAMPLES = [
     EC2_EXAMPLES_DIR / 'env_vars.yml',
     EC2_EXAMPLES_DIR / 'basic_jupyter.yml',
     EC2_EXAMPLES_DIR / 'download_files.yml',
+    INTEGRATION_TEST_DIR / 'download_files' / 'nomad.yml'
 ]
 
 
@@ -130,6 +137,18 @@ def test_yml_parser():
         }
     }
 
+    expected_conf_7 = {
+        f"my_cloud_agent-{PLATFORM}-{PYTHON_VERSION}": {
+            "type": "ec2",
+            "instance_type": "t2.micro",
+            "entrypoint": {
+                "type": "script",
+                "cmd": f"python main.py --output-name test_download_files --python-version {PYTHON_VERSION} --platform {PLATFORM}"  # noqa: E501
+            },
+            "download_files": [f'{PLATFORM}_{PYTHON_VERSION.replace(".", "")}_test_download_files.txt']  # noqa: E501
+        }
+    }
+
     assert confs[0] == expected_conf_0
     assert confs[1] == expected_conf_1
     assert confs[2] == expected_conf_2
@@ -137,3 +156,4 @@ def test_yml_parser():
     assert confs[4] == expected_conf_4
     assert confs[5] == expected_conf_5
     assert confs[6] == expected_conf_6
+    assert confs[7] == expected_conf_7

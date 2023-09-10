@@ -17,13 +17,18 @@ done
 # ssh into the project so that we can authenticate our key
 while true
 do
-  	ssh -o "StrictHostKeyChecking no" -i "${pem_path}" "${user}@${public_dns_name}" exit 2>/dev/null 2>&1
-    if [ $? -eq 0 ]; then
+  	errormessage=`ssh -o "StrictHostKeyChecking no" -i "${pem_path}" "${user}@${public_dns_name}" exit 2>/dev/null 2>&1`
+    if [ -z "$errormessage" ]; then
         echo "SSH connection succeeded!"
         break
     else
-        echo "SSH connection failed. Retrying in 5 seconds..."
-        sleep 5
+		if [[ "$errormessage" =~ "Operation timed out" ]]; then
+			echo "SSH connection failed."
+			exit 8
+		else
+        	echo "SSH connection refused. Retrying in 5 seconds..."
+        	sleep 5
+		fi
     fi
 done
 
@@ -46,8 +51,28 @@ if [ ! -z "${requirements}" ]; then
 	remote_file="./requirements.txt"
 	temp_file=$(mktemp)
 	scp -i ${pem_path} ${user}@${public_dns_name}:${remote_file} ${temp_file} 2> scp.log
+
+	# If there is no difference between the local and remote requirements, then check if
+	# the virtual env exists. If it doesn't, then create it. Otherwise, do nothing.
 	if diff $local_file $temp_file >/dev/null ; then
-		true # pass
+
+		ssh -i ${pem_path} ${user}@${public_dns_name} <<EOF
+if [ -d ~/.venv/${project_name} ]; then
+	true # pass
+else
+	python3 -m venv ~/.venv/${project_name}
+	source ~/.venv/${project_name}/bin/activate
+	pip install --upgrade pip
+	pip install -r requirements.txt
+	${post_build_cmds_str}
+fi
+EOF
+		exit_code=$?
+		if [ $exit_code -eq 1 ]; then
+			exit 1
+		fi
+
+	# Otherwise, copy the local requirements to the remote and create the virtual env.
 	else
 		rm ${temp_file}
 
