@@ -1,0 +1,4 @@
+entrypoint:
+  type: project
+  src: app/
+  cmd: python <script_name>.py --arg1 VALUE1

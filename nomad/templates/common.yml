@@ -1,0 +1,10 @@
+requirements: requirements.txt
+env:
+  ENV_VAR1: '{{ env("ENV_VAR1") }}'
+  ...: ...
+download_files:
+  - '{{ Path(__file__) / "output" / "example_processed_data.csv" }}'
+  - ...
+bootstrap_actions:
+  - apt-get update
+  - ...
