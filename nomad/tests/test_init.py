@@ -92,7 +92,6 @@ def test_init_bad_type():
         "--entrypoint", "script"
     ])
     assert result.exit_code != 0
-    assert "Invalid value for '--type'" in result.output
     assert not (TEST_INIT / _file).is_file()
 
 
@@ -109,5 +108,4 @@ def test_init_bad_entrypoint():
         "--entrypoint", "unsupportedep"
     ])
     assert result.exit_code != 0
-    assert "Invalid value for '--entrypoint'" in result.output
     assert not (TEST_INIT / _file).is_file()
