@@ -28,6 +28,7 @@ class RunTask(BaseTask):
             nomad_wkdir=self.nomad_wkdir,
             agent_name=self.name,
             agent_conf=self.conf,
+            infra=self.infra,
             entrypoint=self.entrypoint,
         )
         returncode = agent.run()
