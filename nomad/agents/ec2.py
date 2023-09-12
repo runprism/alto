@@ -11,15 +11,11 @@ Docker Agent.
 from nomad.agents.base import Agent
 from nomad.constants import (
     INTERNAL_FOLDER,
-    EC2_SUPPORTED_INSTANCE_TYPES,
     DEFAULT_LOGGER_NAME
-)
-from nomad.utils import (
-    ConfigurationKey,
-    _check_key_in_conf
 )
 import nomad.ui
 from nomad.entrypoints import BaseEntrypoint
+from nomad.infras import BaseInfra
 
 # Standard library imports
 import argparse
@@ -70,10 +66,13 @@ class Ec2(Agent):
         nomad_wkdir: Path,
         agent_name: str,
         agent_conf: Dict[str, Any],
+        infra: BaseInfra,
         entrypoint: BaseEntrypoint,
         mode: str = "prod"
     ):
-        super().__init__(args, nomad_wkdir, agent_name, agent_conf, entrypoint, mode)
+        super().__init__(
+            args, nomad_wkdir, agent_name, agent_conf, infra, entrypoint, mode
+        )
 
         # Check additional configuration
 
@@ -120,25 +119,6 @@ class Ec2(Agent):
             # Set PEM key path
             if "pem_key_path" in data["files"].keys():
                 self.pem_key_path = Path(data["files"]["pem_key_path"])
-
-    def check_conf(self,
-        conf: Dict[str, Any]
-    ):
-        """
-        Check additional EC2 configuration options in `conf`
-
-        args:
-            conf: agent configuration
-        returns:
-            True if the configuration is properly structured
-        raises:
-            ValueError if the configuration is not properly structured
-        """
-        required_keys = [
-            ConfigurationKey("instance_type", str, EC2_SUPPORTED_INSTANCE_TYPES)
-        ]
-        for _k in required_keys:
-            _check_key_in_conf(_k, conf, self.agent_name)
 
     def aws_cli(self) -> int:
         """
@@ -674,6 +654,7 @@ class Ec2(Agent):
         instance_id: Optional[str],
         instance_name: str,
         instance_type: str,
+        ami_image: str,
     ):
         """
         Create EC2 instance
@@ -782,7 +763,7 @@ class Ec2(Agent):
                     KeyName=instance_name,
                     MinCount=1,
                     MaxCount=1,
-                    ImageId="ami-0889a44b331db0194",
+                    ImageId=ami_image,
                     TagSpecifications=[
                         {
                             'ResourceType': 'instance',
@@ -903,18 +884,20 @@ class Ec2(Agent):
         # Return all paths
         return [str(nomad_wkdir)] + additional_paths
 
-    def parse_instance_type(self,
-        agent_conf: Dict[str, Any]
+    def parse_infra_key(self,
+        infra_conf: Dict[str, Any],
+        key: str,
     ) -> Any:
         """
-        Get the user-specified instance type from the agent's configuration
+        Get the`key` from the infra configuration
 
         args:
             agent_conf: agent configuration as dictionary
+            key: the key to retrieve
         returns:
-            instance type
+            the value associated with `key` in the infra configuration
         """
-        return agent_conf["instance_type"]
+        return infra_conf[key]
 
     def parse_environment_variables(self,
         agent_conf: Dict[str, Any]
@@ -999,8 +982,9 @@ class Ec2(Agent):
         """
         Create the EC2 instance image
         """
-        # Instance type
-        instance_type = self.parse_instance_type(self.agent_conf)
+        # Infra
+        instance_type = self.parse_infra_key(self.infra.infra_conf, "instance_type")
+        ami_image = self.parse_infra_key(self.infra.infra_conf, "ami_image")
 
         # requirements.txt path
         requirements_txt_path = Path(self.parse_requirements(self.agent_conf))
@@ -1034,7 +1018,8 @@ class Ec2(Agent):
             self.ec2_resource,
             self.instance_id,
             self.instance_name,
-            instance_type
+            instance_type,
+            ami_image,
         )
 
         # The `create_instance` command is blocking — it won't finish until the instance

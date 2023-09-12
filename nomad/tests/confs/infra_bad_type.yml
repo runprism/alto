@@ -1,5 +1,6 @@
 my_cloud_agent:
-  type: emr
+  infra:
+    type: emr
   instance_type: t2.micro
   requirements: requirements.txt
   entrypoint:

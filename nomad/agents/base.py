@@ -11,6 +11,7 @@ contains the base class for the agent.
 # Internal imports
 from nomad.agents.meta import MetaAgent
 from nomad.entrypoints import BaseEntrypoint
+from nomad.infras import BaseInfra
 
 # Standard library imports
 import argparse
@@ -37,6 +38,7 @@ class Agent(metaclass=MetaAgent):
         nomad_wkdir: Path,
         agent_name: str,
         agent_conf: Dict[str, Any],
+        infra: BaseInfra,
         entrypoint: BaseEntrypoint,
         mode: str = "prod"
     ):
@@ -53,6 +55,7 @@ class Agent(metaclass=MetaAgent):
         self.nomad_wkdir = nomad_wkdir
         self.agent_name = agent_name
         self.agent_conf = agent_conf
+        self.infra = infra
         self.entrypoint = entrypoint
 
         # Check the configuration

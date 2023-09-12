@@ -22,7 +22,7 @@ class RunTask(BaseTask):
         Run the user's entrypoint code on the user's agent
         """
         self.check()
-        agent_type = self.conf["type"]
+        agent_type = self.infra.infra_conf["type"]
         agent: Agent = MetaAgent.get_agent(agent_type)(
             args=self.args,
             nomad_wkdir=self.nomad_wkdir,

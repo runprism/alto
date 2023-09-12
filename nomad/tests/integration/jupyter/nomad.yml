@@ -1,7 +1,9 @@
 my_cloud_agent-{{ __platform__ }}-{{ __version__ }}:
-  type: ec2
-  instance_type: t2.micro
+  infra:
+    type: ec2
+    instance_type: t2.micro
+    ami_image: ami-01c647eace872fc02
   entrypoint:
     type: jupyter
     kernel: python3
-    cmd: papermill nomad_nb.ipynb nomad_nb_exec.ipynb
+    cmd: nomad_nb.ipynb

@@ -37,8 +37,11 @@ def test_normal_conf():
 
     # Expected configuration
     expected_conf = {
-        "type": "ec2",
-        "instance_type": "t2.micro",
+        "infra": {
+            "type": "ec2",
+            "instance_type": "t2.micro",
+            "ami_image": "ami-01c647eace872fc02",
+        },
         "requirements": "requirements.txt",
         "entrypoint": {
             "type": "function",
@@ -73,11 +76,24 @@ def test_bad_yml_additional_paths():
     assert expected_msg == str(cm.value)
 
 
-def test_bad_type():
+def test_no_infra():
+    """
+    If `type` does not exist, throw an error
+    """
+    task = _create_task(path=(CONFs / 'no_infra.yml'))
+
+    # Run the check
+    with pytest.raises(ValueError) as cm:
+        task.check_conf(task.conf, task.name)
+    expected_msg = "`infra` not found in `my_cloud_agent`'s configuration!"  # noqa: E501
+    assert expected_msg == str(cm.value)
+
+
+def test_infra_bad_type():
     """
     If `type` is not currently supported, throw an error
     """
-    task = _create_task(path=(CONFs / 'bad_type.yml'))
+    task = _create_task(path=(CONFs / 'infra_bad_type.yml'))
 
     # Run the check
     with pytest.raises(ValueError) as cm:
@@ -86,16 +102,16 @@ def test_bad_type():
     assert expected_msg == str(cm.value)
 
 
-def test_no_type():
+def test_infra_no_type():
     """
     If `type` does not exist, throw an error
     """
-    task = _create_task(path=(CONFs / 'no_type.yml'))
+    task = _create_task(path=(CONFs / 'infra_no_type.yml'))
 
     # Run the check
     with pytest.raises(ValueError) as cm:
         task.check_conf(task.conf, task.name)
-    expected_msg = "`type` not found in `my_cloud_agent`'s configuration!"  # noqa: E501
+    expected_msg = "`type` not found in `infra`'s configuration!"  # noqa: E501
     assert expected_msg == str(cm.value)
 
 
@@ -162,14 +178,17 @@ def test_jupyter_entrypoint():
     task = _create_task(path=(CONFs / 'normal_conf_jupyter.yml'))
     task.check()
     expected_conf = {
-        "type": "ec2",
-        "instance_type": "t2.micro",
+        "infra": {
+            "type": "ec2",
+            "instance_type": "t2.micro",
+            "ami_image": "ami-01c647eace872fc02",
+        },
         "requirements": "requirements.txt",
         "entrypoint": {
             "type": "jupyter",
             "kernel": "python3",
             "src": "scripts",
-            "cmd": "papermill nomad_nb.ipynb nomad_nb_exec.ipynb",
+            "cmd": "nomad_nb.ipynb",
         },
         "env": {
             "ENV_VAR_1": "VALUE1",

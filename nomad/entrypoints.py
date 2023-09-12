@@ -173,8 +173,8 @@ class Jupyter(BaseEntrypoint):
         """
         super().check_conf()
         optional_keys = [
-            ConfigurationKey("kernel", str)
-
+            ConfigurationKey("kernel", str),
+            ConfigurationKey("params", dict),
         ]
         for _k in optional_keys:
             _check_optional_key_in_conf(_k, self.entrypoint_conf)
@@ -189,14 +189,19 @@ class Jupyter(BaseEntrypoint):
             )
             self.kernel = "python3"
 
-        # Check the format of the `cmd`. It should start with `papermill
-        # <notebook_path>.ipynb <output_path>.ipynb`
-        cmd_structure = r'(?i)^papermill ([^\.]+\.ipynb) ([^\.]+\.ipynb)'
+        # Params
+        self.params = {}
+        if "params" in self.entrypoint_conf.keys():
+            self.params = self.entrypoint_conf["params"]
+
+        # Check the format of the `cmd`. The `cmd` should just be the notebook to
+        # implement.
+        cmd_structure = r'(?i)^([^\.\s]+\.ipynb)'
         matches = re.findall(cmd_structure, self.cmd)
         if len(matches) != 1:
-            raise ValueError("`cmd` value not properly formatted...should be `papermill <notebook_path> <output_path>`")  # noqa: E501
-        match = matches[0]
-        self.notebook_path, self.output_path = match[0], match[1]
+            raise ValueError("`cmd` value not properly formatted...should be `<notebook_path>`")  # noqa: E501
+        self.notebook_path = matches[0]
+        self.output_path = f"{self.notebook_path.replace('.ipynb', '')}_exec.ipynb"
 
         # Check if notebook exists as a file
         full_nb_path = Path(self.nomad_wkdir / self.src / self.notebook_path)
@@ -255,9 +260,12 @@ class Jupyter(BaseEntrypoint):
                 f.write(json_object)
 
     def build_command(self):
-        # ipython kernel install --name "{self.kernel}" --user &&
+        # Base papermill command, params command, and full command
         base_papermill_cmd = f'papermill {self.notebook_path} {self.output_path}'  # noqa: E501
+        params_cmd = " ".join([f"-p {k} {v}" for k, v in self.params.items()])
+        full_cmd = f"{base_papermill_cmd} {params_cmd}"
+
         if self.src != "":
-            return f"cd {self.src} && {base_papermill_cmd}"
+            return f"cd {self.src} && {full_cmd}"
         else:
-            return base_papermill_cmd
+            return full_cmd

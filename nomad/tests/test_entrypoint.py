@@ -144,10 +144,10 @@ def test_jupyter_normal_entrypoint():
 
     # Check entrypoint attributes
     assert entrypoint.src == "scripts"
-    assert entrypoint.cmd == "papermill nomad_nb.ipynb nomad_exec_nb.ipynb"
+    assert entrypoint.cmd == "nomad_nb.ipynb"
     assert entrypoint.kernel == "python3"
     assert entrypoint.notebook_path == "nomad_nb.ipynb"
-    assert entrypoint.output_path == "nomad_exec_nb.ipynb"
+    assert entrypoint.output_path == "nomad_nb_exec.ipynb"
 
 
 def test_jupyter_no_kernel():
@@ -166,13 +166,17 @@ def test_jupyter_no_kernel():
 
     # Check entrypoint attributes
     assert entrypoint.src == "scripts"
-    assert entrypoint.cmd == "papermill nomad_nb.ipynb nomad_exec_nb.ipynb"
+    assert entrypoint.cmd == "nomad_nb.ipynb"
     assert entrypoint.notebook_path == "nomad_nb.ipynb"
-    assert entrypoint.output_path == "nomad_exec_nb.ipynb"
+    assert entrypoint.output_path == "nomad_nb_exec.ipynb"
 
     # Kernel
     assert hasattr(entrypoint, "kernel")
     assert entrypoint.kernel == "python3"
+
+    # Params
+    assert hasattr(entrypoint, "params")
+    assert entrypoint.params == {}
 
 
 def test_jupyter_bad_command():
@@ -182,5 +186,5 @@ def test_jupyter_bad_command():
     conf = jupyter_tests.BAD_COMMAND_FORMAT
     with pytest.raises(ValueError) as cm:
         _ = JupyterEntrypoint(entrypoint_conf=conf, nomad_wkdir=ENTRYPOINT_WKDIR)
-    expected_msg = "`cmd` value not properly formatted...should be `papermill <notebook_path> <output_path>`"  # noqa: E501
+    expected_msg = "`cmd` value not properly formatted...should be `<notebook_path>`"
     assert str(cm.value) == expected_msg
