@@ -72,31 +72,31 @@ def init(
     ])
     if type is None:
         click.echo(" ")
-        _type = click.prompt(f"What type of cloud environment do you want to use [{env_options}]?")  # noqa: E501
-        if _type not in SUPPORTED_AGENTS:
-            raise ValueError(f"unsupported type `{_type}`")
+        type = click.prompt(f"What type of cloud environment do you want to use [{env_options}]?")  # noqa: E501
+        if type not in SUPPORTED_AGENTS:
+            raise ValueError(f"unsupported type `{type}`")
     if file is None:
-        _file = click.prompt(
+        file = click.prompt(
             f"What would you like the name of your configuration file to be {nomad.ui.GRAY}[default: nomad.yml]{nomad.ui.RESET}?",  # noqa: E501
             default="nomad.yml",
             show_default=False
         )
     if entrypoint is None:
-        _ep = click.prompt(
+        entrypoint = click.prompt(
             f"What is your code's entrypoint? {nomad.ui.GRAY}[default: script]{nomad.ui.RESET}?",  # noqa: E501
             default="script",
             show_default=False
         )
-        if _ep not in SUPPORTED_ENTRYPOINTS:
-            raise ValueError(f"unsupported entrypoint `{_ep}`")
+        if entrypoint not in SUPPORTED_ENTRYPOINTS:
+            raise ValueError(f"unsupported entrypoint `{entrypoint}`")
 
     if (type is None or file is None or entrypoint is None):
         click.echo(" ")
     args = argparse.Namespace()
-    args.type = _type
-    args.file = _file
-    args.entrypoint = _ep
-    args.wkdir = Path(os.path.abspath(_file)).parent
+    args.type = type
+    args.file = file
+    args.entrypoint = entrypoint
+    args.wkdir = Path(os.path.abspath(file)).parent
     args.log_level = log_level
 
     # Apply task
