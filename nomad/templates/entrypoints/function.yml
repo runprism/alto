@@ -1,0 +1,5 @@
+entrypoint:
+  type: function
+  cmd: <script_name>.<function_name>
+  kwargs:
+    ARG1: VALUE1

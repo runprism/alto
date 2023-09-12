@@ -19,7 +19,8 @@ from nomad.tasks import (
     init as init_task,
 )
 from nomad.constants import (
-    SUPPORTED_AGENTS
+    SUPPORTED_AGENTS,
+    SUPPORTED_ENTRYPOINTS,
 )
 import nomad.ui
 
@@ -37,6 +38,7 @@ def cli():
 @cli.command()
 @click.option(
     "--type",
+    type=click.Choice(SUPPORTED_AGENTS),
     help="""Type of cloud environment to use""",
     required=False
 )
@@ -47,13 +49,24 @@ def cli():
     required=False,
 )
 @click.option(
+    "--entrypoint", "-f",
+    type=click.Choice(SUPPORTED_ENTRYPOINTS),
+    help="""Entrypoint type. [dim]\[default: script][/]""",  # noqa
+    required=False,
+)
+@click.option(
     '--log-level', '-l',
     type=click.Choice(['info', 'warn', 'error', 'debug']),
     default="info",
     help="""Set the log level. [dim]\[default: info][/]""",  # noqa
     required=False
 )
-def init(type: Optional[str], file: Optional[str], log_level: str):
+def init(
+    type: Optional[str],
+    file: Optional[str],
+    entrypoint: Optional[str],
+    log_level: str
+):
     env_options = "|".join([
         f"{nomad.ui.BRIGHT_YELLOW}{e}{nomad.ui.RESET}" for e in SUPPORTED_AGENTS
     ])
@@ -68,11 +81,21 @@ def init(type: Optional[str], file: Optional[str], log_level: str):
             default="nomad.yml",
             show_default=False
         )
-        click.echo(" ")
+    if entrypoint is None:
+        entrypoint = click.prompt(
+            f"What is your code's entrypoint? {nomad.ui.GRAY}[default: script]{nomad.ui.RESET}?",  # noqa: E501
+            default="script",
+            show_default=False
+        )
+        if entrypoint not in SUPPORTED_ENTRYPOINTS:
+            raise ValueError(f"unsupported entrypoint `{entrypoint}`")
 
+    if (type is None or file is None or entrypoint is None):
+        click.echo(" ")
     args = argparse.Namespace()
     args.type = type
     args.file = file
+    args.entrypoint = entrypoint
     args.wkdir = Path(os.path.abspath(file)).parent
     args.log_level = log_level
 

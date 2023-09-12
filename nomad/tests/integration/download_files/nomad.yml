@@ -1,6 +1,8 @@
 my_cloud_agent-{{ __platform__ }}-{{ __version__ }}:
-  type: ec2
-  instance_type: t2.micro
+  infra:
+    type: ec2
+    instance_type: t2.micro
+    ami_image: ami-01c647eace872fc02
   entrypoint:
     type: script
     cmd: python main.py --output-name test_download_files --python-version {{ __version__ }} --platform {{ __platform__ }}

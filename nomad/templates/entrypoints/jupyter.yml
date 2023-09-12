@@ -1,0 +1,7 @@
+entrypoint:
+  type: jupyter
+  kernel: python3
+  cmd: <notebook_path>.ipynb
+  params:  # used with Papermill! Check out https://papermill.readthedocs.io/en/latest/usage-parameterize.html
+    PARAM1: VALUE1
+    

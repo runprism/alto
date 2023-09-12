@@ -1,11 +1,11 @@
 my_cloud_agent:
   infra:
-    type: ec2
     instance_type: t2.micro
     ami_image: ami-01c647eace872fc02
+  instance_type: t2.micro
   requirements: requirements.txt
   entrypoint:
-    type: script
-    cmd: python <script_name>.py
-  env:
-    ENV_VAR_1: ENV_VALUE_1
+    type: function
+    cmd: <script_name>.<function_name>
+    kwargs:
+      kwarg1: value1

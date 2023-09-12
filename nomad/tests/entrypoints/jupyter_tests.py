@@ -9,17 +9,17 @@ NORMAL = {
     "type": "jupyter",
     "kernel": "python3",
     "src": "scripts",
-    "cmd": "papermill nomad_nb.ipynb nomad_exec_nb.ipynb"
+    "cmd": "nomad_nb.ipynb"
 }
 
 
 # --------------------------------------------------------------------------------------
-# no kernel
+# no kernel / params
 
 NO_KERNEL = {
     "type": "jupyter",
     "src": "scripts",
-    "cmd": "papermill nomad_nb.ipynb nomad_exec_nb.ipynb"
+    "cmd": "nomad_nb.ipynb"
 }
 
 
@@ -30,5 +30,5 @@ BAD_COMMAND_FORMAT = {
     "type": "jupyter",
     "kernel": "python3",
     "src": "scripts",
-    "cmd": "nomad_nb.ipynb nomad_exec_nb.ipynb"
+    "cmd": "papermill nomad_nb.ipynb nomad_exec_nb.ipynb"
 }

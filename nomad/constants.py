@@ -7,6 +7,9 @@ import os
 from pathlib import Path
 import sys
 
+# Version
+VERSION = "0.0.2"
+
 
 # Nomad internal folder
 INTERNAL_FOLDER = Path(os.environ.get(

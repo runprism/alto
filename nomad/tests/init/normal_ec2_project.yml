@@ -1,0 +1,19 @@
+my_cloud_agent:
+  infra:
+    type: ec2
+    instance_type: t2.micro
+    ami_image: ami-0889a44b331db0194
+  entrypoint:
+    type: project
+    src: app/
+    cmd: python <script_name>.py --arg1 VALUE1
+  requirements: requirements.txt
+  env:
+    ENV_VAR1: '{{ env("ENV_VAR1") }}'
+    '...': '...'
+  download_files:
+  - '{{ Path(__file__) / "output" / "example_processed_data.csv" }}'
+  - '...'
+  bootstrap_actions:
+  - apt-get update
+  - '...'

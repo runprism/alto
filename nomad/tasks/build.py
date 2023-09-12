@@ -21,12 +21,13 @@ class BuildTask(BaseTask):
         project on the newly created agent.
         """
         self.check()
-        agent_type = self.conf["type"]
+        agent_type = self.infra.infra_conf["type"]
         agent: Agent = MetaAgent.get_agent(agent_type)(
             args=self.args,
             nomad_wkdir=self.nomad_wkdir,
             agent_name=self.name,
             agent_conf=self.conf,
+            infra=self.infra,
             entrypoint=self.entrypoint,
         )
 

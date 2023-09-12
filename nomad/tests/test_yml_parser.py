@@ -40,8 +40,11 @@ def test_yml_parser():
     # Expected configurations
     expected_conf_0 = {
         "my_cloud_agent": {
-            "type": "ec2",
-            "instance_type": "t2.micro",
+            "infra": {
+                "type": "ec2",
+                "instance_type": "t2.micro",
+                "ami_image": "ami-01c647eace872fc02",
+            },
             "requirements": "requirements.txt",
             "entrypoint": {
                 "type": "function",
@@ -58,8 +61,11 @@ def test_yml_parser():
 
     expected_conf_1 = {
         "my_cloud_agent": {
-            "type": "ec2",
-            "instance_type": "t2.micro",
+            "infra": {
+                "type": "ec2",
+                "instance_type": "t2.micro",
+                "ami_image": "ami-01c647eace872fc02",
+            },
             "requirements": "requirements.txt",
             "entrypoint": {
                 "type": "function",
@@ -73,8 +79,11 @@ def test_yml_parser():
 
     expected_conf_2 = {
         "my_cloud_agent": {
-            "type": "ec2",
-            "instance_type": "t2.micro",
+            "infra": {
+                "type": "ec2",
+                "instance_type": "t2.micro",
+                "ami_image": "ami-01c647eace872fc02",
+            },
             "requirements": "requirements.txt",
             "entrypoint": {
                 "type": "project",
@@ -86,8 +95,11 @@ def test_yml_parser():
 
     expected_conf_3 = {
         "my_cloud_agent": {
-            "type": "ec2",
-            "instance_type": "t2.micro",
+            "infra": {
+                "type": "ec2",
+                "instance_type": "t2.micro",
+                "ami_image": "ami-01c647eace872fc02",
+            },
             "requirements": "requirements.txt",
             "entrypoint": {
                 "type": "script",
@@ -98,8 +110,11 @@ def test_yml_parser():
 
     expected_conf_4 = {
         "my_cloud_agent": {
-            "type": "ec2",
-            "instance_type": "t2.micro",
+            "infra": {
+                "type": "ec2",
+                "instance_type": "t2.micro",
+                "ami_image": "ami-01c647eace872fc02",
+            },
             "requirements": "requirements.txt",
             "entrypoint": {
                 "type": "script",
@@ -113,8 +128,11 @@ def test_yml_parser():
 
     expected_conf_5 = {
         "my_cloud_agent": {
-            "type": "ec2",
-            "instance_type": "t2.micro",
+            "infra": {
+                "type": "ec2",
+                "instance_type": "t2.micro",
+                "ami_image": "ami-01c647eace872fc02",
+            },
             "requirements": "requirements.txt",
             "entrypoint": {
                 "type": "jupyter",
@@ -126,8 +144,11 @@ def test_yml_parser():
 
     expected_conf_6 = {
         "my_cloud_agent": {
-            "type": "ec2",
-            "instance_type": "t2.micro",
+            "infra": {
+                "type": "ec2",
+                "instance_type": "t2.micro",
+                "ami_image": "ami-01c647eace872fc02",
+            },
             "requirements": "requirements.txt",
             "entrypoint": {
                 "type": "script",
@@ -139,8 +160,11 @@ def test_yml_parser():
 
     expected_conf_7 = {
         f"my_cloud_agent-{PLATFORM}-{PYTHON_VERSION}": {
-            "type": "ec2",
-            "instance_type": "t2.micro",
+            "infra": {
+                "type": "ec2",
+                "instance_type": "t2.micro",
+                "ami_image": "ami-01c647eace872fc02",
+            },
             "entrypoint": {
                 "type": "script",
                 "cmd": f"python main.py --output-name test_download_files --python-version {PYTHON_VERSION} --platform {PLATFORM}"  # noqa: E501

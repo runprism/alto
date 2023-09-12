@@ -27,6 +27,11 @@ from nomad.entrypoints import (  # noqa
     Function,
     Jupyter
 )
+from nomad.infras import (  # noqa
+    MetaInfra,
+    BaseInfra,
+    Ec2,
+)
 
 
 # Class definition
@@ -104,12 +109,21 @@ class BaseTask:
             ValueError if `conf` is not properly structured
         """
         required_keys = [
-            ConfigurationKey("type", str, SUPPORTED_AGENTS),
+            ConfigurationKey("infra", dict),
             ConfigurationKey("entrypoint", dict),
         ]
         for _k in required_keys:
             _check_key_in_conf(_k, conf, name)
 
+        # Create the infra
+        type_key = ConfigurationKey("type", str, SUPPORTED_AGENTS)
+        _check_key_in_conf(type_key, conf["infra"], "infra")
+        self.infra = MetaInfra.get_infra(conf["infra"]["type"])(
+            infra_conf=conf["infra"],
+            nomad_wkdir=self.nomad_wkdir
+        )
+
+        # Other optional keys
         optional_keys = [
             ConfigurationKey("env", dict),
             ConfigurationKey("requirements", str),

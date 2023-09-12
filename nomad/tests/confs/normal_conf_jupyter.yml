@@ -1,12 +1,14 @@
 my_cloud_agent:
-  type: ec2
-  instance_type: t2.micro
+  infra:
+    type: ec2
+    instance_type: t2.micro
+    ami_image: ami-01c647eace872fc02
   requirements: requirements.txt
   entrypoint:
     type: jupyter
     kernel: python3
     src: scripts
-    cmd: papermill nomad_nb.ipynb nomad_nb_exec.ipynb
+    cmd: nomad_nb.ipynb
   env:
     ENV_VAR_1: VALUE1
     ENV_VAR_2: VALUE2

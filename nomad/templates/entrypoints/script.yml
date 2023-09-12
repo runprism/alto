@@ -1,0 +1,3 @@
+entrypoint:
+  type: script
+  cmd: python <script_name>.py --arg1 VALUE1
