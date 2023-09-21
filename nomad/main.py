@@ -26,12 +26,15 @@ import nomad.ui
 
 
 # Use markup
-click.rich_click.USE_RICH_MARKUP = True
+# click.rich_click.USE_RICH_MARKUP = True
+click.rich_click.USE_MARKDOWN = True
 
 
 # Construct command
 @click.group
 def cli():
+    """Run your code on any cloud environment (e.g., EC2 instances, EMR clusters,
+    etc.)"""
     pass
 
 
@@ -45,21 +48,21 @@ def cli():
 @click.option(
     "--file", "-f",
     type=str,
-    help="""Name of new Nomad configuration file. [dim]\[default: nomad.yml][/]""",  # noqa
+    help=f"""Name of new Nomad configuration file. _{nomad.ui.GRAY}[default: nomad.yml]{nomad.ui.RESET}_""",  # noqa
     required=False,
 )
 @click.option(
     "--entrypoint", "-f",
     type=click.Choice(SUPPORTED_ENTRYPOINTS),
-    help="""Entrypoint type. [dim]\[default: script][/]""",  # noqa
+    help=f"""Entrypoint type. _{nomad.ui.GRAY}[default: script]{nomad.ui.RESET}_""",  # noqa
     required=False,
 )
 @click.option(
     '--log-level', '-l',
     type=click.Choice(['info', 'warn', 'error', 'debug']),
     default="info",
-    help="""Set the log level. [dim]\[default: info][/]""",  # noqa
-    required=False
+    help=f"""Set the log level. _{nomad.ui.GRAY}[default: info]{nomad.ui.RESET}_""",
+    required=False,
 )
 def init(
     type: Optional[str],
@@ -67,6 +70,12 @@ def init(
     entrypoint: Optional[str],
     log_level: str
 ):
+    """Create a configuration YAML
+
+    Examples:
+    - nomad init --type ec2 --entrypoint script
+    - nomad init --type ec2 --file ec2.yml
+    """
     env_options = "|".join([
         f"{nomad.ui.BRIGHT_YELLOW}{e}{nomad.ui.RESET}" for e in SUPPORTED_AGENTS
     ])
@@ -120,17 +129,23 @@ def init(
     '--log-level', '-l',
     type=click.Choice(['info', 'warn', 'error', 'debug']),
     default="info",
-    help="""Set the log level. [dim]\[default: info][/]""",  # noqa
+    help=f"""Set the log level. _{nomad.ui.GRAY}[default: info]{nomad.ui.RESET}_""",
     required=False
 )
 @click.option(
     '--whitelist-all',
     is_flag=True,
     default=False,
-    help="""Whitelist all IP addresses. If `False`, then only whitelist your current IP address. [dim]\[default: False][/]""",  # noqa
+    help=f"""Whitelist all IP addresses. If `False`, then only whitelist your current IP address. _{nomad.ui.GRAY}[default: False]{nomad.ui.RESET}_""",  # noqa
     required=False,
 )
 def apply(file: str, name: str, log_level: str, whitelist_all: bool):
+    """Build your agent using a configuration YAML.
+
+    <br>Examples:
+    - nomad apply -f ./ec2.yml
+    - nomad apply -f ./ec2.yml --whitelist-all
+    """
     args = argparse.Namespace()
     args.file = file
     args.name = name
@@ -159,28 +174,28 @@ def apply(file: str, name: str, log_level: str, whitelist_all: bool):
     '--log-level', '-l',
     type=click.Choice(['info', 'warn', 'error', 'debug']),
     default="info",
-    help="""Set the log level. [dim]\[default: info][/]""",  # noqa
+    help=f"""Set the log level. _{nomad.ui.GRAY}[default: info]{nomad.ui.RESET}_""",
     required=False
 )
 @click.option(
     '--no-delete-failure',
     is_flag=True,
     default=False,
-    help="""Preserve the cloud resources after a failed run. [dim]\[default: False][/]""",  # noqa
+    help=f"""Preserve the cloud resources after a failed run. _{nomad.ui.GRAY}[default: False]{nomad.ui.RESET}_""",  # noqa
     required=False
 )
 @click.option(
     '--no-delete-success',
     is_flag=True,
     default=False,
-    help="""Preserve the cloud resources after a successful run. [dim]\[default: False][/]""",  # noqa
+    help=f"""Preserve the cloud resources after a successful run. _{nomad.ui.GRAY}[default: False]{nomad.ui.RESET}_""",  # noqa
     required=False
 )
 @click.option(
     '--whitelist-all',
     is_flag=True,
     default=False,
-    help="""Whitelist all IP addresses. If `False`, then only whitelist your current IP address. [dim]\[default: False][/]""",  # noqa
+    help=f"""Whitelist all IP addresses. If `False`, then only whitelist your current IP address. _{nomad.ui.GRAY}[default: False]{nomad.ui.RESET}_""",  # noqa
     required=False,
 )
 def run(
@@ -191,6 +206,12 @@ def run(
     no_delete_success: bool,
     whitelist_all: bool,
 ):
+    """Run your project using an agent.
+
+    <br>Examples:
+    - nomad run -f ./ec2.yml --no-delete-failure
+    - nomad run -f ./ec2.yml --no-delete-success --whitelist-all
+    """
     args = argparse.Namespace()
     args.file = file
     args.name = name
@@ -221,27 +242,27 @@ def run(
     '--log-level', '-l',
     type=click.Choice(['info', 'warn', 'error', 'debug']),
     default="info",
-    help="""Set the log level. [dim]\[default: info][/]""",  # noqa
+    help=f"""Set the log level. _{nomad.ui.GRAY}[default: info]{nomad.ui.RESET}_""",
     required=False
 )
 @click.option(
     '--no-delete-failure',
     is_flag=True,
     default=False,
-    help="""Preserve the cloud resources after a failed build. [dim]\[default: False][/]""",  # noqa
+    help=f"""Preserve the cloud resources after a failed build. _{nomad.ui.GRAY}[default: False]{nomad.ui.RESET}_""",  # noqa
 )
 @click.option(
     '--no-delete-success',
     is_flag=True,
     default=False,
-    help="""Preserve the cloud resources after a successful build. [dim]\[default: False][/]""",  # noqa
+    help=f"""Preserve the cloud resources after a successful build. _{nomad.ui.GRAY}[default: False]{nomad.ui.RESET}_""",  # noqa
     required=False
 )
 @click.option(
     '--whitelist-all',
     is_flag=True,
     default=False,
-    help="""Whitelist all IP addresses. If `False`, then only whitelist your current IP address. [dim]\[default: False][/]""",  # noqa
+    help=f"""Whitelist all IP addresses. If `False`, then only whitelist your current IP address. _{nomad.ui.GRAY}[default: False]{nomad.ui.RESET}_""",  # noqa
     required=False,
 )
 def build(
@@ -252,6 +273,13 @@ def build(
     no_delete_success: bool,
     whitelist_all: bool,
 ):
+    """Build your agent using a configuration YAML and then run your project on the
+    newly created agent.
+
+    <br>Examples:
+    - nomad build -f ./ec2.yml --no-delete-failure
+    - nomad build -f ./ec2.yml --no-delete-success --whitelist-all
+    """
     args = argparse.Namespace()
     args.file = file
     args.name = name
@@ -282,10 +310,15 @@ def build(
     '--log-level', '-l',
     type=click.Choice(['info', 'warn', 'error', 'debug']),
     default="info",
-    help="""Set the log level. [dim]\[default: info][/]""",  # noqa
+    help=f"""Set the log level. _{nomad.ui.GRAY}[default: info]{nomad.ui.RESET}_""",
     required=False
 )
 def delete(file: str, name: str, log_level: str):
+    """Delete your agent.
+
+    <br>Examples:
+    - nomad delete -f ./ec2.yml
+    """
     args = argparse.Namespace()
     args.file = file
     args.name = name
