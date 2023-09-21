@@ -8,7 +8,7 @@ from pathlib import Path
 import sys
 
 # Version
-VERSION = "0.0.2"
+VERSION = "0.0.3"
 
 
 # Nomad internal folder
