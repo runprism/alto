@@ -361,6 +361,8 @@ class BaseTask:
             # specified first.
             for li in lis:
                 matches = re.search("Python (.*)$", li.contents[0])
+                if matches is None:
+                    continue
                 _version = matches.group(1)
 
                 # Find the first Python version that agrees with the inputted "major" /
