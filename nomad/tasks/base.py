@@ -6,6 +6,9 @@ Base task class
 import argparse
 from pathlib import Path
 from typing import Any, Dict
+import re
+import requests
+
 
 # Internal imports
 from nomad.constants import (
@@ -77,6 +80,7 @@ class BaseTask:
         self.confirm_matrix_conf_structure(self.conf)
         self.confirm_entrypoint_conf_structure(self.conf)
         self.confirm_additional_paths_conf_structure(self.conf)
+        self.conf = self.define_python_version(self.conf)
         self.conf = self.define_post_build_cmds(self.conf)
         self.conf = self.define_download_files(self.conf)
 
@@ -125,6 +129,7 @@ class BaseTask:
 
         # Other optional keys
         optional_keys = [
+            ConfigurationKey("python_version", [str, int, float]),
             ConfigurationKey("env", dict),
             ConfigurationKey("requirements", str),
             ConfigurationKey("post_build_cmds", list),
@@ -296,3 +301,91 @@ class BaseTask:
         # Update configuration
         conf["download_files"] = download_files
         return conf
+
+    def define_python_version(self,
+        conf: Dict[str, Any]
+    ):
+        if "python_version" not in conf.keys():
+            conf["python_version"] = ""
+            return conf
+
+        # Grab / update the python version
+        python_version = str(conf["python_version"])
+
+        # Check if major, minor, and patch version are all specified
+        _split = python_version.split(".")
+        if len(_split) > 3:
+            raise ValueError(f"invalid Python version `{python_version}`")
+        version_format = ""
+        if len(_split) == 1:
+            version_format = "major"
+        elif len(_split) == 2:
+            version_format = "major.minor"
+        else:
+            version_format = "major.minor.patch"
+
+        # If a full version of Python is specified, then confirm that it exists and
+        # return that.
+        if version_format == "major.minor.patch":
+            resp = requests.get(f"https://www.python.org/ftp/python/{python_version}/")
+            if resp.status_code != 200:
+                resp.raise_for_status()
+
+            conf["python_version"] = python_version
+            return conf
+
+        # If only the major or major/minor are specified, then grab the latest
+        # associated version of Python.
+        else:
+
+            # Place imports in this inner `if` clause, because we don't want to import
+            # stuff unnecessarily.
+            from bs4 import BeautifulSoup
+
+            # Get all available versions
+            url = "https://www.python.org/doc/versions/"
+            response = requests.get(url)
+            soup = BeautifulSoup(response.text, "html.parser")
+
+            # All python versions are stored in a single div
+            div = soup.find("div", attrs={"id": "python-documentation-by-version"})
+
+            # Python versions are stored in <li> elements, i.e., something like
+            #   <li>
+            #       <a class="reference external" href="https://docs.python.org/release/3.11.0/">Python 3.11.0</a>  # noqa
+            #       " , documentation released on 24 October 2022."
+            #   </li>
+            lis = div.find_all("a", class_="reference external")
+
+            # Versions are specified in descending order, with the most recent version
+            # specified first.
+            for li in lis:
+                matches = re.search("Python (.*)$", li.contents[0])
+                _version = matches.group(1)
+
+                # Find the first Python version that agrees with the inputted "major" /
+                # "major.minor" version.
+                if version_format == "major":
+                    if _version.split(".")[0] == python_version:
+
+                        # Check that the version exists in Python's archive
+                        resp = requests.get(f"https://www.python.org/ftp/python/{_version}/")  # noqa: E501
+                        if resp.status_code != 200:
+                            resp.raise_for_status()
+
+                        # If it does, return
+                        conf["python_version"] = _version
+                        return conf
+
+                elif version_format == "major.minor":
+                    _version_split = _version.split(".")
+                    if f"{_version_split[0]}.{_version_split[1]}" == python_version:
+
+                        # Check that the version exists in Python's archive
+                        resp = requests.get(f"https://www.python.org/ftp/python/{_version}/")  # noqa: E501
+                        if resp.status_code != 200:
+                            resp.raise_for_status()
+
+                        # If it does, return
+                        conf["python_version"] = _version
+                        return conf

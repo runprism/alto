@@ -7,6 +7,7 @@ import argparse
 from pathlib import Path
 from nomad.tasks.base import BaseTask
 import pytest
+import requests
 
 
 # Constants
@@ -59,6 +60,7 @@ def test_normal_conf():
             "ENV_VAR_2": "VALUE2",
         },
         "download_files": [],
+        "python_version": "",
     }
     assert expected_conf == task.conf
 
@@ -200,6 +202,46 @@ def test_jupyter_entrypoint():
         ],
         "download_files": [
             "scripts/nomad_nb_exec.ipynb",
-        ]
+        ],
+        "python_version": "",
     }
     assert expected_conf == task.conf
+
+
+def test_python_major():
+    """
+    Test Python version when only the `major` version is specified. The `major` version
+    is 2.
+    """
+    task = _create_task(path=(CONFs / 'python_major.yml'))
+    task.check()
+    assert "2.7.18" == task.conf["python_version"]
+
+
+def test_python_major_minor():
+    """
+    Test Python version when the `major` and `minor` versions are specified.
+    """
+    task = _create_task(path=(CONFs / 'python_major_minor.yml'))
+    task.check()
+    assert "3.6.15" == task.conf["python_version"]
+
+
+def test_python_major_minor_patch():
+    """
+    Test Python version when the `major`, `minor`, and `patch` are all specified
+    """
+    task = _create_task(path=(CONFs / 'python_major_minor_patch.yml'))
+    task.check()
+    assert "3.11.6" == task.conf["python_version"]
+
+
+def test_python_bad_version():
+    """
+    Test Python version when the `major`, `minor`, and `patch` are all specified
+    """
+    task = _create_task(path=(CONFs / 'bad_python_version_format.yml'))
+    with pytest.raises(requests.exceptions.HTTPError) as cm:
+        task.check()
+    expected_msg = "404 Client Error: Not Found for url: https://www.python.org/ftp/python/3.11.89/"  # noqa
+    assert expected_msg == str(cm.value)
