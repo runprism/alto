@@ -1004,6 +1004,9 @@ class Ec2(Agent):
         env_dict = self.parse_environment_variables(self.agent_conf)
         env_cli = ",".join([f"{k}={v}" for k, v in env_dict.items()])
 
+        # Python version
+        python_version = self.parse_python_version(self.agent_conf)
+
         # Paths to copy
         all_local_paths = self.get_all_local_paths(
             self.nomad_wkdir,
@@ -1040,6 +1043,8 @@ class Ec2(Agent):
                 '-d', str(project_dir),
                 '-c', all_local_paths_cli,
                 '-e', env_cli,
+                '-v', python_version,
+
             ] + procesed_post_build_commands
 
             # Open a subprocess and stream the logs

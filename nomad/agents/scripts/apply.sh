@@ -1,6 +1,6 @@
 #!/bin/bash
 
-while getopts r:p:u:n:d:c:e:x: flag
+while getopts r:p:u:n:d:c:e:x:v: flag
 do
 	case "${flag}" in
 		r) requirements=${OPTARG};;
@@ -11,6 +11,7 @@ do
 		c) copy_paths=${OPTARG};;
 		e) env=${OPTARG};;
 		x) post_build_cmds+=("$OPTARG");;
+		v) python_version=${OPTARG};;
 	esac
 done
 
@@ -57,10 +58,29 @@ if [ ! -z "${requirements}" ]; then
 	if diff $local_file $temp_file >/dev/null ; then
 
 		ssh -i ${pem_path} ${user}@${public_dns_name} <<EOF
+# Install Python version, if it doesn't exist
+if [ ! -z "${python_version}" ]; then
+	if ! test -f ~/Python-${python_version}.tgz; then
+		echo 'Installing Python ${python_version}...'
+		
+		# Some dependencies
+		sudo yum install gcc openssl-devel bzip2-devel libffi-devel zlib-devel -y
+
+		wget https://www.python.org/ftp/python/${python_version}/Python-${python_version}.tgz
+		tar xzf Python-${python_version}.tgz
+		cd Python-${python_version}
+		sudo ./configure --enable-optimizations
+		sudo make altinstall
+
+		echo 'Done installing Python ${python_version}...'
+	fi
+fi
+
 if [ -d ~/.venv/${project_name} ]; then
 	true # pass
 else
-	python3 -m venv ~/.venv/${project_name}
+	cd ~
+	python3.11 -m venv ~/.venv/${project_name}
 	source ~/.venv/${project_name}/bin/activate
 	pip install --upgrade pip
 	pip install -r requirements.txt
@@ -82,7 +102,29 @@ EOF
 if [ -d ~/.venv/${project_name} ]; then
 	sudo rm -rf ~/.venv/${project_name}
 fi
-python3 -m venv ~/.venv/${project_name}
+
+# Install Python version, if it doesn't exist
+echo 'here2'
+if [ ! -z "${python_version}" ]; then
+	if ! test -f ~/Python-${python_version}.tgz; then
+		echo 'Installing Python ${python_version}...'
+
+		# Some dependencies
+		sudo yum install gcc openssl-devel bzip2-devel libffi-devel zlib-devel -y
+
+		wget https://www.python.org/ftp/python/${python_version}/Python-${python_version}.tgz
+		tar xzf Python-${python_version}.tgz
+		cd Python-${python_version}
+		sudo ./configure --enable-optimizations
+		sudo make altinstall
+
+		echo 'Done installing Python ${python_version}...'
+	fi
+fi
+
+# Virtual environment
+cd ~
+python3.11 -m venv ~/.venv/${project_name}
 source ~/.venv/${project_name}/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
@@ -96,10 +138,30 @@ EOF
 else
 	# Create a virtual environment, but just don't install anything
 	ssh -i ${pem_path} ${user}@${public_dns_name} <<EOF
+	# Install Python version, if it doesn't exist
+	if [ ! -z "${python_version}" ]; then
+		if ! test -f ~/Python-${python_version}.tgz; then
+			echo 'Installing Python ${python_version}...'
+
+			# Some dependencies
+			sudo yum install gcc openssl-devel bzip2-devel libffi-devel zlib-devel -y
+			
+			wget https://www.python.org/ftp/python/${python_version}/Python-${python_version}.tgz
+			tar xzf Python-${python_version}.tgz
+			cd Python-${python_version}
+			sudo ./configure --enable-optimizations
+			sudo make altinstall
+
+			echo 'Done installing Python ${python_version}...'
+		fi
+	fi
+
+	# Virtual environment
 	if [ -d ~/.venv/${project_name} ]; then
 		true
 	else
-		python3 -m venv ~/.venv/${project_name}
+		cd ~
+		python3.11 -m venv ~/.venv/${project_name}
 		source ~/.venv/${project_name}/bin/activate
 		pip install --upgrade pip
 		${post_build_cmds_str}
