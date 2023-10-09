@@ -60,6 +60,14 @@ def test_function():
     """
     _build_integration_test(TEST_FUNCTION, "test_function")
 
+    # Check that the correct Python version was used
+    output_key = f"{PLATFORM}_{PYTHON_VERSION}_ec2sys"
+    file_s3_uri = f"s3://nomad-dev-tests/tests/{output_key}.txt"
+    test_output = s3_file_exists(file_s3_uri)
+    expected_output = "This was created using Python 3.11.6"
+    assert test_output == expected_output
+    delete_s3_file(file_s3_uri)
+
 
 def test_script():
     """
