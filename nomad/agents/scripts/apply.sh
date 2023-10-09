@@ -44,6 +44,9 @@ for val in "${post_build_cmds[@]}"; do
     post_build_cmds_str+="$val${NEWLINE}"
 done
 
+# python version
+python_cli="${python_version%*.*}"
+
 # Compare local requirements to remote requirements. If the two are identical, then do
 # not re-install the requirements. If they aren't, then create a new virtual environment
 # and reinstall.
@@ -80,7 +83,7 @@ if [ -d ~/.venv/${project_name} ]; then
 	true # pass
 else
 	cd ~
-	python3.11 -m venv ~/.venv/${project_name}
+	python${python_cli} -m venv ~/.venv/${project_name}
 	source ~/.venv/${project_name}/bin/activate
 	pip install --upgrade pip
 	pip install -r requirements.txt
@@ -124,7 +127,7 @@ fi
 
 # Virtual environment
 cd ~
-python3.11 -m venv ~/.venv/${project_name}
+python${python_cli} -m venv ~/.venv/${project_name}
 source ~/.venv/${project_name}/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
@@ -161,7 +164,7 @@ else
 		true
 	else
 		cd ~
-		python3.11 -m venv ~/.venv/${project_name}
+		python${python_cli} -m venv ~/.venv/${project_name}
 		source ~/.venv/${project_name}/bin/activate
 		pip install --upgrade pip
 		${post_build_cmds_str}
