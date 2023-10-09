@@ -985,6 +985,7 @@ class Ec2(Agent):
         # Infra
         instance_type = self.parse_infra_key(self.infra.infra_conf, "instance_type")
         ami_image = self.parse_infra_key(self.infra.infra_conf, "ami_image")
+        python_version = self.parse_infra_key(self.infra.infra_conf, "python_version")
 
         # requirements.txt path
         requirements_txt_path = Path(self.parse_requirements(self.agent_conf))
@@ -1003,9 +1004,6 @@ class Ec2(Agent):
         # Environment dictionary
         env_dict = self.parse_environment_variables(self.agent_conf)
         env_cli = ",".join([f"{k}={v}" for k, v in env_dict.items()])
-
-        # Python version
-        python_version = self.parse_python_version(self.agent_conf)
 
         # Paths to copy
         all_local_paths = self.get_all_local_paths(
