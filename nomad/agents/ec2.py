@@ -985,6 +985,7 @@ class Ec2(Agent):
         # Infra
         instance_type = self.parse_infra_key(self.infra.infra_conf, "instance_type")
         ami_image = self.parse_infra_key(self.infra.infra_conf, "ami_image")
+        python_version = self.parse_infra_key(self.infra.infra_conf, "python_version")
 
         # requirements.txt path
         requirements_txt_path = Path(self.parse_requirements(self.agent_conf))
@@ -1040,6 +1041,8 @@ class Ec2(Agent):
                 '-d', str(project_dir),
                 '-c', all_local_paths_cli,
                 '-e', env_cli,
+                '-v', python_version,
+
             ] + procesed_post_build_commands
 
             # Open a subprocess and stream the logs

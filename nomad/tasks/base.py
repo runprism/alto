@@ -7,6 +7,7 @@ import argparse
 from pathlib import Path
 from typing import Any, Dict
 
+
 # Internal imports
 from nomad.constants import (
     SUPPORTED_AGENTS,

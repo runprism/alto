@@ -1,0 +1,18 @@
+my_cloud_agent:
+  infra:
+    type: ec2
+    instance_type: t2.micro
+    ami_image: ami-01c647eace872fc02
+  requirements: requirements.txt
+  python_version: 3.11.89
+  entrypoint:
+    type: function
+    src: scripts
+    cmd: test_fn.print_value
+    kwargs:
+      value: "hello world"
+  additional_paths:
+    - "{{ Path(__file__).parent }}"
+  env:
+    ENV_VAR_1: VALUE1
+    ENV_VAR_2: VALUE2

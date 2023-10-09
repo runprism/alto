@@ -41,6 +41,7 @@ def test_normal_conf():
             "type": "ec2",
             "instance_type": "t2.micro",
             "ami_image": "ami-01c647eace872fc02",
+            "python_version": "",
         },
         "requirements": "requirements.txt",
         "entrypoint": {
@@ -182,6 +183,7 @@ def test_jupyter_entrypoint():
             "type": "ec2",
             "instance_type": "t2.micro",
             "ami_image": "ami-01c647eace872fc02",
+            "python_version": "",
         },
         "requirements": "requirements.txt",
         "entrypoint": {
@@ -200,6 +202,6 @@ def test_jupyter_entrypoint():
         ],
         "download_files": [
             "scripts/nomad_nb_exec.ipynb",
-        ]
+        ],
     }
     assert expected_conf == task.conf

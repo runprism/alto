@@ -122,6 +122,17 @@ class Agent(metaclass=MetaAgent):
         download_files = agent_conf["download_files"]
         return download_files
 
+    def parse_python_version(self, agent_conf: Dict[str, Any]):
+        """
+        Get the Python version to use in the cloud environment
+
+        args:
+            agent_conf: agent configuration as dictionary
+        returns:
+            Python version, as a string
+        """
+        return agent_conf["python_version"]
+
     def apply(self):
         raise ValueError("`run` method not yet implemented!")
 

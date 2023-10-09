@@ -3,6 +3,7 @@ my_cloud_agent-{{ __platform__ }}-{{ __version__ }}:
     type: ec2
     instance_type: t2.micro
     ami_image: ami-01c647eace872fc02
+    python_version: 3.11
   entrypoint:
     type: function
     cmd: main.write_txt_file
