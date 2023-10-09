@@ -45,7 +45,11 @@ for val in "${post_build_cmds[@]}"; do
 done
 
 # python version
-python_cli="${python_version%*.*}"
+if [ ! -z "${python_version}" ]; then
+	python_cli="${python_version%*.*}"
+else
+	python_cli="3"
+fi
 
 # Compare local requirements to remote requirements. If the two are identical, then do
 # not re-install the requirements. If they aren't, then create a new virtual environment
@@ -107,7 +111,6 @@ if [ -d ~/.venv/${project_name} ]; then
 fi
 
 # Install Python version, if it doesn't exist
-echo 'here2'
 if [ ! -z "${python_version}" ]; then
 	if ! test -f ~/Python-${python_version}.tgz; then
 		echo 'Installing Python ${python_version}...'
