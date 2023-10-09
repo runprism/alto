@@ -312,7 +312,7 @@ class BaseTask:
         # Grab / update the python version
         python_version = str(conf["python_version"])
 
-        # Check if major, minor, and patch version are all specified
+        # Check if major, minor, and micro version are all specified
         _split = python_version.split(".")
         if len(_split) > 3:
             raise ValueError(f"invalid Python version `{python_version}`")
@@ -322,11 +322,11 @@ class BaseTask:
         elif len(_split) == 2:
             version_format = "major.minor"
         else:
-            version_format = "major.minor.patch"
+            version_format = "major.minor.micro"
 
         # If a full version of Python is specified, then confirm that it exists and
         # return that.
-        if version_format == "major.minor.patch":
+        if version_format == "major.minor.micro":
             resp = requests.get(f"https://www.python.org/ftp/python/{python_version}/")
             if resp.status_code != 200:
                 resp.raise_for_status()

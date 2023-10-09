@@ -227,18 +227,18 @@ def test_python_major_minor():
     assert "3.6.15" == task.conf["python_version"]
 
 
-def test_python_major_minor_patch():
+def test_python_major_minor_micro():
     """
-    Test Python version when the `major`, `minor`, and `patch` are all specified
+    Test Python version when the `major`, `minor`, and `micro` are all specified
     """
-    task = _create_task(path=(CONFs / 'python_major_minor_patch.yml'))
+    task = _create_task(path=(CONFs / 'python_major_minor_micro.yml'))
     task.check()
     assert "3.11.6" == task.conf["python_version"]
 
 
 def test_python_bad_version():
     """
-    Test Python version when the `major`, `minor`, and `patch` are all specified
+    Test Python version when the `major`, `minor`, and `micro` are all specified
     """
     task = _create_task(path=(CONFs / 'bad_python_version_format.yml'))
     with pytest.raises(requests.exceptions.HTTPError) as cm:
