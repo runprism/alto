@@ -5,6 +5,7 @@ Util functions
 # Imports
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, List, Union
+from pathlib import Path
 
 
 # Functions / Utils
@@ -113,3 +114,51 @@ def _check_optional_key_in_conf(
                 f"Unsupported value `{_v}` for key `{_k.key_name}`"
             )
     return True
+
+
+def paths_flattener(list_of_paths: List[Path]):
+    """
+    "Flatten" a list of paths, i.e., remove all the redundant parents. For example, if
+        list_of_paths = [
+            '/Users/username/Documents/test/project/',
+            '/Users/username/Documents/test/common1/',
+            '/Users/username/Desktop/common2/'
+        ]
+    then the list of flattened paths will be:
+        flattened_paths = [
+            '/Documents/test/project/'
+            '/Documents/test/common1/'
+            '/Desktop/common/
+        ]
+
+    args:
+        list_of_paths: list of paths to flatten
+    returns:
+        flattened list of paths
+    """
+    total_paths = len(list_of_paths)
+    split_paths: List[List[str]] = []
+    parent_counts = {}
+    for path in list_of_paths:
+
+        # Convert path to a string a split
+        split_path = str(path).split("/")
+        split_paths.append(split_path)
+        for parent in split_path[:-1]:
+            parent_counts[parent] = parent_counts.get(parent, 0) + 1
+
+    # Now, remove all parents that appear in all the files
+    parents_keep = []
+    for parent, count in parent_counts.items():
+        if count < total_paths:
+            parents_keep.append(parent)
+
+    # Flatten
+    flattened_paths = []
+    for spath in split_paths:
+        for parent in spath[:-1]:
+            if parent not in parents_keep:
+                spath.remove(parent)
+        flattened_paths.append(Path("/".join(spath)))
+
+    return flattened_paths
