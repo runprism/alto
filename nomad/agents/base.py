@@ -15,7 +15,7 @@ from nomad.infras import BaseInfra
 
 # Standard library imports
 import argparse
-from typing import Any, Dict
+from typing import Any, Dict, List
 from pathlib import Path
 
 
@@ -25,12 +25,7 @@ from pathlib import Path
 
 class Agent(metaclass=MetaAgent):
     """
-    The `agents.yml` file will be formatted as follows:
-
-    agents:
-      <agent name here>:
-        type: docker
-        ...
+    Base Agent class
     """
 
     def __init__(self,
@@ -64,12 +59,17 @@ class Agent(metaclass=MetaAgent):
     def check_conf(self, conf: Dict[str, Any]):
         return True
 
-    def parse_requirements(self, agent_conf: Dict[str, Any]):
+    def parse_requirements(self,
+        agent_conf: Dict[str, Any],
+        absolute: bool = True
+    ):
         """
         Get the requirements.txt path and construct the pip install statement.
 
         args:
             agent_conf: agent configuration as dictionary
+            absolute: whether to return the absolute path; if False, then return the
+                relative path. Default is True.
         returns:
             requirements path
         """
@@ -88,7 +88,29 @@ class Agent(metaclass=MetaAgent):
         # Check if this file exists
         if not absolute_requirements_path.is_file():
             raise ValueError(f"no file found at {absolute_requirements_path}")
-        return absolute_requirements_path
+
+        if absolute:
+            return absolute_requirements_path
+        else:
+            return requirements
+
+    def parse_infra_key(self,
+        infra_conf: Dict[str, Any],
+        key: str,
+    ) -> Any:
+        """
+        Get the`key` from the infra configuration
+
+        args:
+            infra_conf: infra configuration
+            key: the key to retrieve
+        returns:
+            the value associated with `key` in the infra configuration
+        """
+        try:
+            return infra_conf[key]
+        except KeyError:
+            return None
 
     def parse_post_build_cmds(self, agent_conf: Dict[str, Any]):
         """
@@ -132,6 +154,40 @@ class Agent(metaclass=MetaAgent):
             Python version, as a string
         """
         return agent_conf["python_version"]
+
+    def parse_environment_variables(self,
+        agent_conf: Dict[str, Any]
+    ) -> Dict[str, str]:
+        """
+        Get environment variables from the agent's configuration and store in a
+        dictionary
+
+        args:
+            agent_conf: agent configuration as dictionary
+        returns:
+            environment variables as a dictionary
+        """
+        if "env" in agent_conf.keys():
+            env_vars: Dict[str, str] = agent_conf["env"]
+            return env_vars
+        else:
+            return {}
+
+    def parse_additional_paths(self,
+        agent_conf: Dict[str, Any]
+    ) -> List[str]:
+        """
+        Parse `additional_paths` in the agent's configuration
+
+        args:
+            agent_conf: agent configuration as dictionary
+        returns:
+            additional paths as a list of strings
+        """
+        if "additional_paths" not in agent_conf.keys():
+            return []
+        additional_paths: List[str] = agent_conf["additional_paths"]
+        return additional_paths
 
     def apply(self):
         raise ValueError("`run` method not yet implemented!")

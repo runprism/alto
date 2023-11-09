@@ -20,7 +20,7 @@ def test_paths_flattener_1():
         Path('Documents/test/common1/'),
         Path('Desktop/common2/'),
     ]
-    assert sorted(flattened_paths) == sorted(expected_flattened_paths)
+    assert flattened_paths == expected_flattened_paths
 
 
 def test_paths_flattener_2():
@@ -33,4 +33,15 @@ def test_paths_flattener_2():
         Path('project/'),
         Path('common1/'),
     ]
-    assert sorted(flattened_paths) == sorted(expected_flattened_paths)
+    assert flattened_paths == expected_flattened_paths
+
+
+def test_paths_flattener_single_item():
+    list_of_paths = [
+        Path('/Users/username/Documents/test/project/'),
+    ]
+    flattened_paths = paths_flattener(list_of_paths)
+    expected_flattened_paths = [
+        Path('project/'),
+    ]
+    assert flattened_paths == expected_flattened_paths

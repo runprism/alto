@@ -32,6 +32,7 @@ from nomad.infras import (  # noqa
     MetaInfra,
     BaseInfra,
     Ec2,
+    Docker,
 )
 
 

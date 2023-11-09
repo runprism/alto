@@ -10,6 +10,7 @@ from nomad.agents.meta import MetaAgent
 from nomad.agents import (  # noqa: F401
     meta,
     ec2,
+    docker_agent
 )
 from nomad.tasks.base import BaseTask
 

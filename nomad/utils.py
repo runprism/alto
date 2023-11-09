@@ -116,7 +116,7 @@ def _check_optional_key_in_conf(
     return True
 
 
-def paths_flattener(list_of_paths: List[Path]):
+def paths_flattener(list_of_paths: List[Union[str, Path]]) -> List[Path]:
     """
     "Flatten" a list of paths, i.e., remove all the redundant parents. For example, if
         list_of_paths = [
@@ -138,7 +138,7 @@ def paths_flattener(list_of_paths: List[Path]):
     """
     total_paths = len(list_of_paths)
     split_paths: List[List[str]] = []
-    parent_counts = {}
+    parent_counts: Dict[str, int] = {}
     for path in list_of_paths:
 
         # Convert path to a string a split

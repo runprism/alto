@@ -870,7 +870,8 @@ class Ec2(Agent):
         directory and `additional_paths`.
 
         args:
-            nomad_wkdir: user's working directory agent_conf: agent configuration
+            nomad_wkdir: user's working directory
+            agent_conf: agent configuration
         returns:
             list of project paths
         """
@@ -883,39 +884,6 @@ class Ec2(Agent):
 
         # Return all paths
         return [str(nomad_wkdir)] + additional_paths
-
-    def parse_infra_key(self,
-        infra_conf: Dict[str, Any],
-        key: str,
-    ) -> Any:
-        """
-        Get the`key` from the infra configuration
-
-        args:
-            agent_conf: agent configuration as dictionary
-            key: the key to retrieve
-        returns:
-            the value associated with `key` in the infra configuration
-        """
-        return infra_conf[key]
-
-    def parse_environment_variables(self,
-        agent_conf: Dict[str, Any]
-    ) -> Dict[str, str]:
-        """
-        Get environment variables from the agent's configuration and store in a
-        dictionary
-
-        args:
-            agent_conf: agent configuration as dictionary
-        returns:
-            environment variables as a dictionary
-        """
-        if "env" in agent_conf.keys():
-            env_vars: Dict[str, str] = agent_conf["env"]
-            return env_vars
-        else:
-            return {}
 
     def _log_output(self,
         color: str,

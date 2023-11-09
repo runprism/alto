@@ -25,7 +25,8 @@ DEFAULT_LOGGER_NAME = "nomad_logger"
 
 # Supported cloud agents
 SUPPORTED_AGENTS = [
-    "ec2"
+    "docker",
+    "ec2",
 ]
 
 

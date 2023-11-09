@@ -188,3 +188,39 @@ class Ec2(BaseInfra):
                         # If it does, return
                         infra_conf["python_version"] = _version
                         return infra_conf
+
+
+class Docker(BaseInfra):
+    """
+    Docker infra. This is defined as an infra conf with `type = docker`. Acceptable
+    nested key-value pairs are:
+
+        base_image: base image to use
+        server_url: Docker's server URL
+    """
+    DEFAULT_SERVER_URL = "unix://var/run/docker.sock"
+
+    def check_conf(self):
+        """
+        Confirm that the infra configuration is acceptable
+        """
+        super().check_conf()
+
+        # Required keys
+        required_keys = [
+            ConfigurationKey("base_image", str),
+        ]
+        for _k in required_keys:
+            _check_key_in_conf(_k, self.infra_conf, "infra")
+
+        # Check for the `server_url``
+        optional_keys = [
+            ConfigurationKey("server_url", str),
+            ConfigurationKey("context", str)
+        ]
+        for _k in optional_keys:
+            _check_optional_key_in_conf(_k, self.infra_conf)
+
+        # Update the `server_url` within the infra configuration
+        if "server_url" not in self.infra_conf.keys():
+            self.infra_conf["server_url"] = self.DEFAULT_SERVER_URL
