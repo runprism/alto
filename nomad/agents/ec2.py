@@ -77,9 +77,9 @@ class Ec2(Agent):
         # Check additional configuration
 
         # Bash dir
-        self.SCRIPTS_DIR = f"{os.path.dirname(__file__)}/scripts"
-        self.AGENT_APPLY_SCRIPT = f"{self.SCRIPTS_DIR}/apply.sh"
-        self.AGENT_RUN_SCRIPT = f"{self.SCRIPTS_DIR}/run.sh"
+        scripts_dir = f"{os.path.dirname(__file__)}/scripts"
+        self.AGENT_APPLY_SCRIPT = f"{scripts_dir}/ec2/apply.sh"
+        self.AGENT_RUN_SCRIPT = f"{scripts_dir}/ec2/run.sh"
 
         # Create the client
         self.aws_cli()
@@ -119,6 +119,15 @@ class Ec2(Agent):
             # Set PEM key path
             if "pem_key_path" in data["files"].keys():
                 self.pem_key_path = Path(data["files"]["pem_key_path"])
+
+    def set_scripts_dir(self,
+        apply_script: Optional[Path] = None,
+        run_script: Optional[Path] = None,
+    ) -> None:
+        if apply_script is not None:
+            self.AGENT_APPLY_SCRIPT = str(apply_script)
+        if run_script is not None:
+            self.AGENT_RUN_SCRIPT = str(run_script)
 
     def aws_cli(self) -> int:
         """

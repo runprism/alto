@@ -81,11 +81,12 @@ def _check_optional_key_in_conf(
         conf_name: name of configuration (or configuration component)
     returns:
         True if the key exists, is the right type, and is a supported value
+        False if the key doesn't exist
     raises:
         ValueError if any of the above conditions are not satisfied
     """
     if _k.key_name not in conf.keys():
-        return True
+        return False
 
     _v = conf[_k.key_name]
 
@@ -113,7 +114,11 @@ def _check_optional_key_in_conf(
             raise ValueError(
                 f"Unsupported value `{_v}` for key `{_k.key_name}`"
             )
-    return True
+
+    if _v is None:
+        return False
+    else:
+        return True
 
 
 def paths_flattener(list_of_paths: List[Union[str, Path]]) -> List[Path]:

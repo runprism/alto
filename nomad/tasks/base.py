@@ -33,6 +33,7 @@ from nomad.infras import (  # noqa
     BaseInfra,
     Ec2,
     Docker,
+    DockerOnEc2
 )
 
 
@@ -249,6 +250,16 @@ class BaseTask:
             for cmd in [
                 "pip install ipython ipykernel papermill",
                 f'ipython kernel install --name "{ep.kernel}" --user'
+            ]:
+                if cmd not in post_build_cmds:
+                    post_build_cmds.append(cmd)
+
+        # For `DockerOnEc2` infrastructures, we need to install Docker in our EC2 build.
+        if isinstance(self.infra, DockerOnEc2):
+            for cmd in [
+                "sudo yum install -y docker",
+                "sudo service docker start",
+                "sudo docker --version"
             ]:
                 if cmd not in post_build_cmds:
                     post_build_cmds.append(cmd)
