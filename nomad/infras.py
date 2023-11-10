@@ -199,6 +199,7 @@ class Docker(BaseInfra):
         server_url: Docker's server URL
     """
     DEFAULT_SERVER_URL = "unix://var/run/docker.sock"
+    DEFAULT_REGISTRY = "ecr"
 
     def check_conf(self):
         """
@@ -216,7 +217,7 @@ class Docker(BaseInfra):
         # Check for the `server_url``
         optional_keys = [
             ConfigurationKey("server_url", str),
-            ConfigurationKey("context", str)
+            ConfigurationKey("context", str),
         ]
         for _k in optional_keys:
             _check_optional_key_in_conf(_k, self.infra_conf)
@@ -224,3 +225,36 @@ class Docker(BaseInfra):
         # Update the `server_url` within the infra configuration
         if "server_url" not in self.infra_conf.keys():
             self.infra_conf["server_url"] = self.DEFAULT_SERVER_URL
+        elif self.infra_conf["server_url"] is None:
+            self.infra_conf["server_url"] = self.DEFAULT_SERVER_URL
+
+
+class DockerOnEc2(Docker, Ec2):
+    """
+    Docker infra. This is defined as an infra conf with `type = docker`. Acceptable
+    nested key-value pairs are:
+
+        base_image: base image to use
+        server_url: Docker's server URL
+    """
+    DEFAULT_SERVER_URL = "unix://var/run/docker.sock"
+
+    def check_conf(self):
+        """
+        Confirm that the infra configuration is acceptable
+        """
+        Docker.check_conf(self)
+        Ec2.check_conf(self)
+
+        # Check for the `registry``
+        optional_keys = [
+            ConfigurationKey("registry", str),
+        ]
+        for _k in optional_keys:
+            _check_optional_key_in_conf(_k, self.infra_conf)
+
+        # Update the `registry`. If the `registry` is not specified, then use ECR
+        if "registry" not in self.infra_conf.keys():
+            self.infra_conf["registry"] = "ecr"
+        elif self.infra_conf["registry"] is None:
+            self.infra_conf["registry"] = "ecr"
