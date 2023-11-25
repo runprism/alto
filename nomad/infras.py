@@ -10,15 +10,28 @@ import re
 import requests
 
 # Internal imports
+from nomad.registries import (  # noqa
+    MetaRegistry,
+    Ecr,
+    Dockerhub,
+)
 from nomad.constants import (
+    DEFAULT_LOGGER_NAME,
     SUPPORTED_AGENTS,
     EC2_SUPPORTED_INSTANCE_TYPES,
+    SUPPORTED_IMAGE_REGISTRIES,
 )
 from nomad.utils import (
     ConfigurationKey,
     _check_key_in_conf,
     _check_optional_key_in_conf,
 )
+import nomad.ui
+
+
+# Logger
+import logging
+DEFAULT_LOGGER = logging.getLogger(DEFAULT_LOGGER_NAME)
 
 
 # Metaclass
@@ -73,7 +86,7 @@ class Ec2(BaseInfra):
         """
         Confirm that the infra configuration is acceptable
         """
-        super().check_conf()
+        BaseInfra.check_conf(self)
 
         # Check for the `instance_type` and `ami_image` keys
         keys = [
@@ -205,7 +218,7 @@ class Docker(BaseInfra):
         """
         Confirm that the infra configuration is acceptable
         """
-        super().check_conf()
+        BaseInfra.check_conf(self)
 
         # Required keys
         required_keys = [
@@ -231,11 +244,13 @@ class Docker(BaseInfra):
 
 class DockerOnEc2(Docker, Ec2):
     """
-    Docker infra. This is defined as an infra conf with `type = docker`. Acceptable
-    nested key-value pairs are:
+    Docker on EC2 infra. This has the same configuration as the Docker infra + the EC2
+    infra. The three differences are:
+        - Ignore the `python_version` EC2 infra...this is superceded by `base_image`
+        - Add `registry` key
+        - Add `registry_creds` key
 
-        base_image: base image to use
-        server_url: Docker's server URL
+    The latter two control where the images lives (e.g., ECR, Dockerhub).
     """
     DEFAULT_SERVER_URL = "unix://var/run/docker.sock"
 
@@ -246,15 +261,30 @@ class DockerOnEc2(Docker, Ec2):
         Docker.check_conf(self)
         Ec2.check_conf(self)
 
-        # Check for the `registry``
-        optional_keys = [
-            ConfigurationKey("registry", str),
-        ]
-        for _k in optional_keys:
-            _check_optional_key_in_conf(_k, self.infra_conf)
+        # Update `python_version
+        if self.infra_conf["python_version"] != "":
+            DEFAULT_LOGGER.warning(
+                "Ignoring `python_vesrion`...this is superceded by `base_image`"
+            )
+            self.infra_conf["python_version"] = ""
 
-        # Update the `registry`. If the `registry` is not specified, then use ECR
+        # Check the `registry` key
         if "registry" not in self.infra_conf.keys():
-            self.infra_conf["registry"] = "ecr"
-        elif self.infra_conf["registry"] is None:
-            self.infra_conf["registry"] = "ecr"
+            DEFAULT_LOGGER.info(
+                f"Did not find `registry` key in infra...defaulting to {nomad.ui.MAGENTA}ECR{nomad.ui.RESET}"  # noqa
+            )
+            registry = "ecr"
+        else:
+            registry = self.infra_conf["registry"]
+
+        if registry not in SUPPORTED_IMAGE_REGISTRIES:
+            raise ValueError(
+                f"unsupported registry `{registry}`...supported values are {str(SUPPORTED_IMAGE_REGISTRIES)}"  # noqa
+            )
+
+        # Create the registry item
+        self.infra_conf["registry"] = registry
+        self.registry = MetaRegistry.get_registry(registry)(
+            infra_conf=self.infra_conf,
+            nomad_wkdir=self.nomad_wkdir,
+        )

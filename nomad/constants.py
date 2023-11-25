@@ -27,6 +27,14 @@ DEFAULT_LOGGER_NAME = "nomad_logger"
 SUPPORTED_AGENTS = [
     "docker",
     "ec2",
+    "dockeronec2"
+]
+
+
+# Supported image registries
+SUPPORTED_IMAGE_REGISTRIES = [
+    "dockerhub",
+    "ecr",
 ]
 
 

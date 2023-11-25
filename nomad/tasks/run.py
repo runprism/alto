@@ -11,6 +11,7 @@ from nomad.agents import (  # noqa: F401
     meta,
     ec2,
     docker_agent,
+    docker_on_ec2,
 )
 from nomad.tasks.base import BaseTask
 

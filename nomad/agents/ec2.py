@@ -70,8 +70,8 @@ class Ec2(Agent):
         entrypoint: BaseEntrypoint,
         mode: str = "prod"
     ):
-        super().__init__(
-            args, nomad_wkdir, agent_name, agent_conf, infra, entrypoint, mode
+        Agent.__init__(
+            self, args, nomad_wkdir, agent_name, agent_conf, infra, entrypoint, mode
         )
 
         # Check additional configuration
@@ -955,7 +955,7 @@ class Ec2(Agent):
 
         return process.stdout, process.stderr, process.returncode
 
-    def apply(self):
+    def apply(self, overrides={}):
         """
         Create the EC2 instance image
         """
@@ -1080,7 +1080,7 @@ class Ec2(Agent):
             self.delete()
             raise e
 
-    def run(self):
+    def run(self, overrides={}):
         """
         Run the project using the EC2 agent
         """
@@ -1125,7 +1125,7 @@ class Ec2(Agent):
         # Return the returncode.
         return returncode
 
-    def delete(self):
+    def delete(self, overrides={}):
         """
         Delete all resources associated with agent. This includes:
             - Key pair

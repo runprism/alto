@@ -4,5 +4,7 @@ infra:
   ami_image: ami-0889a44b331db0194
   base_image: python:3.10.8-slim-bullseye
   server_url: unix://var/run/docker.sock  # optional!
-  registry: dockerhub  # optional... if not specified, defaults to ECR
-    
+  registry: dockerhub  # this section is optional! if not specified, we use ECR
+  registry_creds:  # also optional!
+    username:
+    password:

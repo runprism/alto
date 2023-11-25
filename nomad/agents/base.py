@@ -189,11 +189,11 @@ class Agent(metaclass=MetaAgent):
         additional_paths: List[str] = agent_conf["additional_paths"]
         return additional_paths
 
-    def apply(self):
+    def apply(self, overrides={}):
         raise ValueError("`run` method not yet implemented!")
 
-    def run(self):
+    def run(self, overrides={}):
         raise ValueError("`run` method not yet implemented!")
 
-    def delete(self):
+    def delete(self, overrides={}):
         raise ValueError("`run` method not yet implemented!")

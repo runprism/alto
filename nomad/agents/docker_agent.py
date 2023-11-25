@@ -68,8 +68,8 @@ class Docker(Agent):
         entrypoint: BaseEntrypoint,
         mode: str = "prod"
     ):
-        super().__init__(
-            args, nomad_wkdir, agent_name, agent_conf, infra, entrypoint, mode
+        Agent.__init__(
+            self, args, nomad_wkdir, agent_name, agent_conf, infra, entrypoint, mode
         )
 
         if mode == "prod":
@@ -186,7 +186,7 @@ class Docker(Agent):
         # Return copy commands
         return copy_commands
 
-    def apply(self):
+    def apply(self, overrides={}):
         """
         Create the Docker image
         """
@@ -235,16 +235,16 @@ class Docker(Agent):
             new_img_version = str(round(float(self.image_version) + 0.1, 1))
 
         # Open Jinja template
-        env = Environment(loader=FileSystemLoader(SCRIPTS_DIR))
+        env = Environment(loader=FileSystemLoader(SCRIPTS_DIR / 'docker'))
         jinja_template = env.get_template("Dockerfile")
         rendered_template = jinja_template.render(
-            base_image=base_image,
-            other_build_cmds=other_build_cmds_dockerfile,
-            requirements_txt=requirements_relative_str,
-            nomad_wkdir_name=self.nomad_wkdir.name,
-            copy_commands=copy_commands_dockerfile,
-            env=env_dockerfile,
-            cmd=self.entrypoint.build_command(),
+            base_image=overrides.get("base_image", base_image),
+            other_build_cmds=overrides.get("other_build_cmds", other_build_cmds_dockerfile),  # noqa
+            requirements_txt=overrides.get("requirements_txt", requirements_relative_str),  # noqa
+            nomad_wkdir_name=overrides.get("nomad_wkdir_name", self.nomad_wkdir.name),
+            copy_commands=overrides.get("copy_commands", copy_commands_dockerfile),
+            env=overrides.get("env", env_dockerfile),
+            cmd=overrides.get("cmd", self.entrypoint.build_command()),
         )
 
         # Write the Dockerfile
