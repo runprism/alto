@@ -94,14 +94,16 @@ class Docker(Agent):
             for img in img_list:
                 if img.tags == []:
                     continue
-                elif len(re.findall(
-                    r"^" + nomad_project_name + r"\-" + self.agent_name + r"\:[0-9\.]+$",  # noqa: E501
-                    img.tags[0]
-                )) > 0:  # noqa: E501
-                    name = img.tags[0].split(":")[0]
-                    version = img.tags[0].split(":")[1]
-                    img_names.append(name)
-                    img_versions.append(version)
+                else:
+                    for _tag in img.tags:
+                        if len(re.findall(
+                            r"^" + nomad_project_name + r"\-" + self.agent_name + r"\:[0-9\.]+$",  # noqa: E501
+                            _tag
+                        )) > 0:  # noqa: E501
+                            name = _tag.split(":")[0]
+                            version = _tag.split(":")[1]
+                            img_names.append(name)
+                            img_versions.append(version)
 
             # If more than one image is found, then raise a warning and default to the
             # latest image.

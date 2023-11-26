@@ -212,7 +212,8 @@ class Ecr(BaseRegistry):
             decode=True,
             auth_config={'username': username, 'password': password}
         ):
-            DEFAULT_LOGGER.info(line)
+            if "status" in line.keys():
+                DEFAULT_LOGGER.info(f"""[{self.__class__.__name__.lower()}] | {line["status"]}""")  # noqa
 
 
 class Dockerhub(BaseRegistry):
