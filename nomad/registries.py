@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, Union
 from botocore.exceptions import NoCredentialsError
 import base64
+import re
 
 # Internal imports
 from nomad.constants import (
@@ -212,8 +213,16 @@ class Ecr(BaseRegistry):
             decode=True,
             auth_config={'username': username, 'password': password}
         ):
+            # Construct the message
+            msg = []
             if "status" in line.keys():
-                DEFAULT_LOGGER.info(f"""[{self.__class__.__name__.lower()}] | {line["status"]}""")  # noqa
+                msg.append(line["status"])
+            if "progress" in line.keys():
+                msg.append(line["progress"])
+            if "error" in line.keys():
+                raise ValueError(line["error"])
+            if " ".join(msg) != "":
+                DEFAULT_LOGGER.info(f"""[{self.__class__.__name__.lower()}] | {" ".join(msg)}""")  # noqa
 
 
 class Dockerhub(BaseRegistry):
@@ -227,8 +236,8 @@ class Dockerhub(BaseRegistry):
 
         # Update the registry creds
         if self.registry_conf["registry_creds"] == {}:
-            username = click.prompt("Enter your Dockerhub username:")
-            password = click.prompt("Enter your Dockerhub password:")
+            username = click.prompt("Enter your Dockerhub username")
+            password = click.prompt("Enter your Dockerhub password")
 
             for k, v in zip(["username", "password"], [username, password]):
                 self.registry_conf[k] = v
@@ -247,12 +256,34 @@ class Dockerhub(BaseRegistry):
         password = self.infra_conf["registry_creds"]["password"]
         docker_client.login(username, password, registry="https://index.docker.io/v1/")
 
-        # Push the Docker image to ECR
+        # For the username, remove the `@xxx.com` if it exists
+        username = re.sub(
+            pattern=r'(?i)(\@[a-z]+\.com)$',
+            repl="",
+            string=username,
+        )
+
+        # Tag the image
         dockerhub_image = f"{username}/{image_name}"
+        image = docker_client.images.get(
+            name=f"{image_name}:{image_tag}"
+        )
+        image.tag(dockerhub_image, tag=image_tag)
+
+        # Push the Docker image to ECR
         for line in docker_client.images.push(
             dockerhub_image,
             tag=image_tag,
             stream=True,
             decode=True,
         ):
-            DEFAULT_LOGGER.info(line)
+            # Construct the message
+            msg = []
+            if "status" in line.keys():
+                msg.append(line["status"])
+            if "progress" in line.keys():
+                msg.append(line["progress"])
+            if "error" in line.keys():
+                raise ValueError(line["error"])
+            if " ".join(msg) != "":
+                DEFAULT_LOGGER.info(f"""[{self.__class__.__name__.lower()}] | {" ".join(msg)}""")  # noqa
