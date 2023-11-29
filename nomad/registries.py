@@ -23,10 +23,11 @@ from nomad.utils import (
     _check_key_in_conf,
     _check_optional_key_in_conf,
 )
+import nomad.ui
 
 # Logger
 import logging
-DEFAULT_LOGGER = logging.getLogger(DEFAULT_LOGGER_NAME)
+logger = logging.getLogger(DEFAULT_LOGGER_NAME)
 
 
 # Metaclass
@@ -146,11 +147,12 @@ class Ecr(BaseRegistry):
 
             return registry, username, password
         except NoCredentialsError:
-            DEFAULT_LOGGER.error("Credentials not available")
+            logger.error("Credentials not available")
             raise
 
     def create_ecr_repository(self,
         repository_name: str,
+        image_tag: str,
         region: str = 'us-east-1'
     ) -> bool:
         """
@@ -164,20 +166,21 @@ class Ecr(BaseRegistry):
             True if the repository was created successfully, False otherwise.
         """
         ecr_client = boto3.client('ecr', region_name=region)
+        prefix = f"{nomad.ui.AGENT_EVENT}{repository_name}:{image_tag}{nomad.ui.AGENT_WHICH_PUSH}[push] {nomad.ui.RESET}"  # noqa: E501
 
         try:
             # Create ECR repository
             _ = ecr_client.create_repository(repositoryName=repository_name)
-            DEFAULT_LOGGER.info(f"ECR repository '{repository_name}' created successfully.")  # noqa
+            logger.info(f"{prefix} | ECR repository '{repository_name}' created successfully.")  # noqa
             return True
         except ecr_client.exceptions.RepositoryAlreadyExistsException:
-            DEFAULT_LOGGER.info(f"ECR repository '{repository_name}' already exists.")
+            logger.info(f"{prefix} | ECR repository '{repository_name}' already exists.")  # noqa
             return True
         except NoCredentialsError:
-            DEFAULT_LOGGER.error("Credentials not available. Unable to create ECR repository.")  # noqa
+            logger.error("{prefix} | Credentials not available. Unable to create ECR repository.")  # noqa
             return False
         except Exception as e:
-            DEFAULT_LOGGER.error(f"Error creating ECR repository: {e}")
+            logger.error(f"{prefix} | Error creating ECR repository: {e}")
             return False
 
     def push(self,
@@ -192,7 +195,7 @@ class Ecr(BaseRegistry):
         registry, username, password = self.get_ecr_login_info()
 
         # Create the ECR repository, if it doesn't exist
-        self.create_ecr_repository(image_name, self.region)
+        self.create_ecr_repository(image_name, image_tag, self.region)
 
         # Tag the local Docker image with the ECR repository URI
         ecr_image = f"{registry.replace('https://', '')}/{image_name}"
@@ -222,7 +225,10 @@ class Ecr(BaseRegistry):
             if "error" in line.keys():
                 raise ValueError(line["error"])
             if " ".join(msg) != "":
-                DEFAULT_LOGGER.info(f"""[{self.__class__.__name__.lower()}] | {" ".join(msg)}""")  # noqa
+                log = " ".join(msg)
+                logger.info(
+                    f"{nomad.ui.AGENT_EVENT}{image_name}:{image_tag}{nomad.ui.AGENT_WHICH_PUSH}[push] {nomad.ui.RESET} | {log}"  # noqa: E501
+                )
 
 
 class Dockerhub(BaseRegistry):
@@ -286,4 +292,7 @@ class Dockerhub(BaseRegistry):
             if "error" in line.keys():
                 raise ValueError(line["error"])
             if " ".join(msg) != "":
-                DEFAULT_LOGGER.info(f"""[{self.__class__.__name__.lower()}] | {" ".join(msg)}""")  # noqa
+                log = " ".join(msg)
+                logger.info(
+                    f"{nomad.ui.AGENT_EVENT}{image_name}:{image_tag}{nomad.ui.AGENT_WHICH_PUSH}[push] {nomad.ui.RESET} | {log}"  # noqa: E501
+                )
