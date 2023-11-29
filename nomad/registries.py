@@ -8,7 +8,7 @@ create this class to enable maximum flexibility.
 import boto3
 import click
 from pathlib import Path
-from typing import Any, Dict, Union
+from typing import Any, Dict, Union, Optional
 from botocore.exceptions import NoCredentialsError
 import base64
 import re
@@ -83,6 +83,11 @@ class BaseRegistry(metaclass=MetaRegistry):
 
         # Registry creds
         if "registry_creds" in self.infra_conf.keys():
+
+            # For mypy
+            if not isinstance(self.infra_conf["registry_creds"], dict):
+                raise ValueError("`registry_creds` must be a dict!")
+
             required_keys = [
                 ConfigurationKey("username", str),
                 ConfigurationKey("password", str),
@@ -95,7 +100,7 @@ class BaseRegistry(metaclass=MetaRegistry):
             self.infra_conf["registry_creds"] = {}
 
         # Registry conf
-        self.registry_conf = {
+        self.registry_conf: Dict[str, Union[str, Dict[str, str]]] = {
             "registry": self.infra_conf["registry"],
             "registry_creds": self.infra_conf["registry_creds"],
         }
@@ -103,7 +108,7 @@ class BaseRegistry(metaclass=MetaRegistry):
     def push(self,
         docker_client,
         image_name: str,
-        image_tag: str,
+        image_tag: Optional[str],
     ):
         """
         Push the image to the registry
@@ -152,7 +157,7 @@ class Ecr(BaseRegistry):
 
     def create_ecr_repository(self,
         repository_name: str,
-        image_tag: str,
+        image_tag: Optional[str],
         region: str = 'us-east-1'
     ) -> bool:
         """
@@ -186,7 +191,7 @@ class Ecr(BaseRegistry):
     def push(self,
         docker_client,
         image_name: str,
-        image_tag: str,
+        image_tag: Optional[str],
     ):
         """
         Push the image to the ECR registry
@@ -246,20 +251,20 @@ class Dockerhub(BaseRegistry):
             password = click.prompt("Enter your Dockerhub password")
 
             for k, v in zip(["username", "password"], [username, password]):
-                self.registry_conf[k] = v
-                self.infra_conf["registry_creds"][k] = v
+                self.registry_conf["registry_creds"][k] = v  # type: ignore
+                self.infra_conf["registry_creds"][k] = v  # type: ignore
 
     def push(self,
         docker_client,
         image_name: str,
-        image_tag: str,
+        image_tag: Optional[str],
     ):
         """
         Push the image to the ECR registry
         """
         # Dockerhub username and password
-        username = self.infra_conf["registry_creds"]["username"]
-        password = self.infra_conf["registry_creds"]["password"]
+        username = self.infra_conf["registry_creds"]["username"]  # type: ignore
+        password = self.infra_conf["registry_creds"]["password"]  # type: ignore
         docker_client.login(username, password, registry="https://index.docker.io/v1/")
 
         # For the username, remove the `@xxx.com` if it exists
