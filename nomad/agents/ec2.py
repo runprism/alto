@@ -87,7 +87,8 @@ class Ec2(Agent):
         self.ec2_resource = boto3.resource('ec2')
 
         # Instance name
-        self.instance_name = self.agent_name
+        nomad_project_name = self.nomad_wkdir.name.replace("_", "-")
+        self.instance_name = f"{nomad_project_name}-{self.agent_name}"
 
         # Get previous instance data.
         if not Path(INTERNAL_FOLDER / 'ec2.json').is_file():
@@ -120,7 +121,7 @@ class Ec2(Agent):
             if "pem_key_path" in data["files"].keys():
                 self.pem_key_path = Path(data["files"]["pem_key_path"])
 
-    def set_scripts_dir(self,
+    def set_scripts_paths(self,
         apply_script: Optional[Path] = None,
         run_script: Optional[Path] = None,
     ) -> None:
@@ -945,15 +946,61 @@ class Ec2(Agent):
             # stdout
             if which == "build":
                 output = process.stdout.readline()  # type: ignore
+                stderr = process.stderr.readline()  # type: ignore
             else:
                 output = process.stderr.readline()  # type: ignore
+                stderr = None
 
             # Stream the logs
             if process.poll() is not None:
                 break
             self._log_output(color, which, output)
+            if stderr:
+                self._log_output(color, which, stderr)
 
         return process.stdout, process.stderr, process.returncode
+
+    def define_accepted_apply_optargs(self) -> List[str]:
+        """
+        Define accepted optargs for the `apply` command
+        """
+        return ['-r', '-p', '-u', '-n', '-d', '-c', '-e', '-x', '-v']
+
+    def define_additional_apply_optargs(self) -> Dict[str, str]:
+        """
+        Define accepted optargs for the `apply` command
+        """
+        return {}
+
+    def override_apply_command(self, cmd: List[str]) -> List[str]:
+        """
+        Override the `apply` command. That is, remove unaccepted optargs and add any
+        additional ones required
+
+        args:
+            accepted_optargs: list of accepted optargs
+            additional_optargs: additional optargs required
+        returns:
+            overridden command
+        """
+        accepted_optargs = self.define_accepted_apply_optargs()
+        additional_optargs = self.define_additional_apply_optargs()
+
+        # Remove unused optargs
+        overridden = []
+        for optarg, value in zip(cmd[:-1], cmd[1:]):
+            if optarg not in accepted_optargs:
+                continue
+            else:
+                overridden.append(optarg)
+                overridden.append(value)
+
+        # Add additional optargs
+        for k, v in additional_optargs.items():
+            overridden.append(k)
+            overridden.append(v)
+
+        return overridden
 
     def apply(self, overrides={}):
         """
@@ -972,11 +1019,11 @@ class Ec2(Agent):
             requirements_txt_str = str(requirements_txt_path)
 
         # Post-build commands
-        procesed_post_build_commands = []
+        processed_post_build_commands = []
         raw_post_build_commands = self.parse_post_build_cmds(self.agent_conf)
         for pbc in raw_post_build_commands:
-            procesed_post_build_commands.append("-x")
-            procesed_post_build_commands.append(f'{pbc}')
+            processed_post_build_commands.append("-x")
+            processed_post_build_commands.append(f'{pbc}')
 
         # Environment dictionary
         env_dict = self.parse_environment_variables(self.agent_conf)
@@ -1009,8 +1056,6 @@ class Ec2(Agent):
 
             # Build the shell command
             cmd = [
-                '/bin/bash',
-                self.AGENT_APPLY_SCRIPT,
                 '-r', str(requirements_txt_str),
                 '-p', str(pem_key_path),
                 '-u', user,
@@ -1020,7 +1065,9 @@ class Ec2(Agent):
                 '-e', env_cli,
                 '-v', python_version,
 
-            ] + procesed_post_build_commands
+            ] + processed_post_build_commands
+            cmd = self.override_apply_command(cmd)
+            cmd = ['/bin/bash', self.AGENT_APPLY_SCRIPT] + cmd
 
             # Open a subprocess and stream the logs
             _, err, returncode = self.stream_logs(

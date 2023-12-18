@@ -282,7 +282,7 @@ class Docker(Agent):
             )
         self.image_version = new_img_version
 
-    def run(self):
+    def run(self, overiddes={}):
         """
         Run the project using the Docker agent
         """
@@ -306,7 +306,7 @@ class Docker(Agent):
                 )
         return 0
 
-    def delete(self):
+    def delete(self, overrides={}):
         """
         Delete the Docker agent
         """
