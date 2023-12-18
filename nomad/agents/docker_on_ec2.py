@@ -87,9 +87,9 @@ class DockerOnEc2(Docker, Ec2):
         """
         Define accepted optargs for the `apply` command
         """
-        registry: BaseRegistry = self.infra.registry
-        username = registry.registry_conf["registry_creds"]["username"]
-        password = registry.registry_conf["registry_creds"]["password"]
+        registry: BaseRegistry = self.infra.registry  # type: ignore
+        username = registry.registry_conf["registry_creds"]["username"]  # type: ignore
+        password = registry.registry_conf["registry_creds"]["password"]  # type: ignore
         return {
             '-a': username,
             '-z': password,
