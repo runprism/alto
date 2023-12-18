@@ -72,10 +72,29 @@ class DockerOnEc2(Docker, Ec2):
         )
 
         # Set scripts paths
-        self.set_scripts_dir(
+        self.set_scripts_paths(
             apply_script=SCRIPTS_DIR / "docker-on-ec2" / "apply.sh",
             run_script=SCRIPTS_DIR / "docker-on-ec2" / "run.sh"
         )
+
+    def define_accepted_apply_optargs(self):
+        """
+        Define accepted optargs for the `apply` command
+        """
+        return ['-p', '-u', '-n']
+
+    def define_additional_apply_optargs(self):
+        """
+        Define accepted optargs for the `apply` command
+        """
+        registry: BaseRegistry = self.infra.registry
+        username = registry.registry_conf["registry_creds"]["username"]
+        password = registry.registry_conf["registry_creds"]["password"]
+        return {
+            '-a': username,
+            '-z': password,
+            '-r': self.infra.infra_conf["registry"]
+        }
 
     def apply(self, overrides={}):
         """
@@ -100,9 +119,10 @@ class DockerOnEc2(Docker, Ec2):
         )
 
         # Finally, create the EC2 instance and pull the Docker image
-        # Ec2.apply(self)
+        returncode = Ec2.apply(self)
+        return returncode
 
-    def run(self):
+    def run(self, overrides={}):
         """
         Run the project using the Docker agent
         """
@@ -126,23 +146,9 @@ class DockerOnEc2(Docker, Ec2):
                 )
         return 0
 
-    def delete(self):
+    def delete(self, overrides={}):
         """
         Delete the Docker agent
         """
-        log_prefix = f"{nomad.ui.AGENT_EVENT}{self.image_name}:{self.image_version}{nomad.ui.RED}[delete]{nomad.ui.RESET}"  # noqa: E501
-
-        # Remove all images with the label "stage=intermediate"
-        images = client.images.list(
-            filters={"label": "stage=intermediate"}
-        )
-        for img in images:
-            curr_tag = img.tags[0]
-            if self.image_name in curr_tag and self.image_version in curr_tag:
-                logger.info(
-                    f"{log_prefix} | Deleting image {nomad.ui.MAGENTA}{img.tags[0]}{nomad.ui.RESET}"  # noqa: E501
-                )
-                client.images.remove(
-                    image=img.tags[0],
-                    force=True,
-                )
+        Docker.delete(self, overrides)
+        Ec2.delete(self, overrides)

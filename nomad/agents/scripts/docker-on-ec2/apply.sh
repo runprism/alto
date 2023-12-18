@@ -1,17 +1,15 @@
 #!/bin/bash
 
-while getopts r:p:u:n:d:c:e:x:v: flag
+while getopts p:u:n:a:z:r:c: flag
 do
 	case "${flag}" in
-		r) requirements=${OPTARG};;
 		p) pem_path=${OPTARG};;
 		u) user=${OPTARG};;
 		n) public_dns_name=${OPTARG};;
-		d) project_dir=${OPTARG};;
-		c) copy_paths=${OPTARG};;
-		e) env=${OPTARG};;
-		x) post_build_cmds+=("$OPTARG");;
-		v) python_version=${OPTARG};;
+		a) username=${OPTARG};;
+		z) password=${OPTARG};;
+		r) repository=${OPTARG};;
+		c) password_cmd=${OPTARG};;
 	esac
 done
 
@@ -34,16 +32,17 @@ do
 done
 
 # install Docker if it doesn't exist
+ssh -i ${pem_path} ${user}@${public_dns_name} "docker --version &> /dev/null";
+exit_code=$?
+if [ ! $exit_code -eq 0 ]; then
+    echo "Docker is not installed. Installing Docker..."
+    
+	# Install Docker
+	ssh -i ${pem_path} ${user}@${public_dns_name} "sudo yum update -y; sudo yum install -y docker; sudo service docker start; sudo usermod -a -G docker ${user}"
+    echo "Docker has been installed."
+else
+    echo "Docker is already installed."
+fi
 
-
-# get project name and path as it would appear in cluster
-project_name="$(basename -- ${project_dir})"
-project_parent_dir="$(dirname ${project_dir})"
-
-# convert the post-build commands to a string
-NEWLINE=$'\n'
-post_build_cmds_str=""
-for val in "${post_build_cmds[@]}"; do
-    post_build_cmds_str+="$val${NEWLINE}"
-done
-
+# Log into Docker, pull the Docker image, and run
+ssh -i ${pem_path} ${user}@${public_dns_name} "${password_cmd} docker login --username ${username} --password ${password} ${repository};";

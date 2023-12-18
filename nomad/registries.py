@@ -150,6 +150,14 @@ class Ecr(BaseRegistry):
             # Decode the base64-encoded Docker credentials
             username, password = base64.b64decode(token).decode().split(':')
 
+            # Update the registry
+            self.infra_conf["registry"] = registry
+
+            # Add to the configuration
+            for k, v in zip(["username", "password"], [username, password]):
+                self.registry_conf["registry_creds"][k] = v  # type: ignore
+                self.infra_conf["registry_creds"][k] = v  # type: ignore
+
             return registry, username, password
         except NoCredentialsError:
             logger.error("Credentials not available")
@@ -211,7 +219,7 @@ class Ecr(BaseRegistry):
         )
         image.tag(ecr_image, tag=image_tag)
 
-        docker_client.login(username, password, registry=registry)
+        docker_client.login(username, password, registry=self.infra_conf["registry"])
 
         # Push the Docker image to ECR
         for line in docker_client.images.push(
@@ -245,6 +253,9 @@ class Dockerhub(BaseRegistry):
         """
         super().check_conf()
 
+        # Update the registry
+        self.infra_conf["registry"] = "https://index.docker.io/v1/"
+
         # Update the registry creds
         if self.registry_conf["registry_creds"] == {}:
             username = click.prompt("Enter your Dockerhub username")
@@ -265,7 +276,7 @@ class Dockerhub(BaseRegistry):
         # Dockerhub username and password
         username = self.infra_conf["registry_creds"]["username"]  # type: ignore
         password = self.infra_conf["registry_creds"]["password"]  # type: ignore
-        docker_client.login(username, password, registry="https://index.docker.io/v1/")
+        docker_client.login(username, password, registry=self.infra_conf["registry"])
 
         # For the username, remove the `@xxx.com` if it exists
         username = re.sub(
