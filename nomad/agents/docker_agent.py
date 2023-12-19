@@ -188,6 +188,9 @@ class Docker(Agent):
         # Return copy commands
         return copy_commands
 
+    def docker_image_kwargs(self):
+        return {}
+
     def apply(self, overrides={}):
         """
         Create the Docker image
@@ -258,7 +261,9 @@ class Docker(Agent):
         resp = self.build_client.build(
             path=str(dockerfile_path.parent),
             tag=f"{self.image_name}:{new_img_version}",
-            rm=True
+            rm=True,
+            pull=True,
+            **self.docker_image_kwargs()
         )
         for _l in resp:
             _l_str = _l.decode('utf-8').strip('\r\n')
@@ -281,6 +286,11 @@ class Docker(Agent):
                 force=True
             )
         self.image_version = new_img_version
+
+        # If nothing has gone wrong, then we should be able to get the image
+        _ = client.images.get(
+            name=f"{self.image_name}:{new_img_version}",
+        )
 
     def run(self, overiddes={}):
         """

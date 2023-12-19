@@ -58,6 +58,13 @@ class BaseRegistry(metaclass=MetaRegistry):
         # Check configuration
         self.check_conf()
 
+    def get_login_info(self):
+        """
+        Get the registry log in information. This returns a tuple of:
+            registry, username, password
+        """
+        pass
+
     def check_conf(self):
         """
         Confirm that the registry configuration is acceptable
@@ -128,7 +135,7 @@ class Ecr(BaseRegistry):
         my_session = boto3.session.Session()
         self.region = my_session.region_name
 
-    def get_ecr_login_info(self):
+    def get_login_info(self):
         """
         Get the ECR registry, username, and password
 
@@ -205,7 +212,7 @@ class Ecr(BaseRegistry):
         Push the image to the ECR registry
         """
         # ECR info
-        registry, username, password = self.get_ecr_login_info()
+        registry, username, password = self.get_login_info()
 
         # Create the ECR repository, if it doesn't exist
         self.create_ecr_repository(image_name, image_tag, self.region)
@@ -246,15 +253,13 @@ class Ecr(BaseRegistry):
 
 class Dockerhub(BaseRegistry):
 
-    def check_conf(self):
+    def get_login_info(self):
         """
-        We were initially going make the Dockerhub username and Dockerhub password
-        required, but instead, we'll prompt the user for these.
+        Get the Dockerhub login information
         """
-        super().check_conf()
-
         # Update the registry
-        self.infra_conf["registry"] = "https://index.docker.io/v1/"
+        registry = "https://index.docker.io/v1/"
+        self.infra_conf["registry"] = registry
 
         # Update the registry creds
         if self.registry_conf["registry_creds"] == {}:
@@ -264,6 +269,9 @@ class Dockerhub(BaseRegistry):
             for k, v in zip(["username", "password"], [username, password]):
                 self.registry_conf["registry_creds"][k] = v  # type: ignore
                 self.infra_conf["registry_creds"][k] = v  # type: ignore
+
+        # Return
+        return registry, username, password
 
     def push(self,
         docker_client,

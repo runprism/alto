@@ -1,6 +1,6 @@
 #!/bin/bash
 
-while getopts p:u:n:a:z:r:c: flag
+while getopts p:u:n:a:z:r:i: flag
 do
 	case "${flag}" in
 		p) pem_path=${OPTARG};;
@@ -9,7 +9,7 @@ do
 		a) username=${OPTARG};;
 		z) password=${OPTARG};;
 		r) repository=${OPTARG};;
-		c) password_cmd=${OPTARG};;
+		i) image_name=${OPTARG};;
 	esac
 done
 
@@ -45,4 +45,4 @@ else
 fi
 
 # Log into Docker, pull the Docker image, and run
-ssh -i ${pem_path} ${user}@${public_dns_name} "${password_cmd} docker login --username ${username} --password ${password} ${repository};";
+ssh -i ${pem_path} ${user}@${public_dns_name} "docker login --username ${username} --password ${password} ${repository}; docker pull ${repository//https:\/\//}/${image_name}";

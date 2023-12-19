@@ -16,6 +16,7 @@ from nomad.constants import (
 import nomad.ui
 from nomad.entrypoints import BaseEntrypoint
 from nomad.infras import BaseInfra
+from nomad.command import AgentCommand
 
 # Standard library imports
 import argparse
@@ -960,47 +961,19 @@ class Ec2(Agent):
 
         return process.stdout, process.stderr, process.returncode
 
-    def define_accepted_apply_optargs(self) -> List[str]:
+    def set_apply_command_attributes(self):
         """
-        Define accepted optargs for the `apply` command
+        Set the acceptable apply command parameters
         """
-        return ['-r', '-p', '-u', '-n', '-d', '-c', '-e', '-x', '-v']
+        if not hasattr(self, "apply_command"):
+            raise ValueError("object does not have `apply_command` attribute!")
 
-    def define_additional_apply_optargs(self) -> Dict[str, str]:
+    def set_run_command_attributes(self):
         """
-        Define accepted optargs for the `apply` command
+        Set the acceptable run command parameters
         """
-        return {}
-
-    def override_apply_command(self, cmd: List[str]) -> List[str]:
-        """
-        Override the `apply` command. That is, remove unaccepted optargs and add any
-        additional ones required
-
-        args:
-            accepted_optargs: list of accepted optargs
-            additional_optargs: additional optargs required
-        returns:
-            overridden command
-        """
-        accepted_optargs = self.define_accepted_apply_optargs()
-        additional_optargs = self.define_additional_apply_optargs()
-
-        # Remove unused optargs
-        overridden = []
-        for optarg, value in zip(cmd[:-1], cmd[1:]):
-            if optarg not in accepted_optargs:
-                continue
-            else:
-                overridden.append(optarg)
-                overridden.append(value)
-
-        # Add additional optargs
-        for k, v in additional_optargs.items():
-            overridden.append(k)
-            overridden.append(v)
-
-        return overridden
+        if not hasattr(self, "run_command"):
+            raise ValueError("object does not have `run_command` attribute!")
 
     def apply(self, overrides={}):
         """
@@ -1022,7 +995,6 @@ class Ec2(Agent):
         processed_post_build_commands = []
         raw_post_build_commands = self.parse_post_build_cmds(self.agent_conf)
         for pbc in raw_post_build_commands:
-            processed_post_build_commands.append("-x")
             processed_post_build_commands.append(f'{pbc}')
 
         # Environment dictionary
@@ -1055,19 +1027,26 @@ class Ec2(Agent):
             pem_key_path = data["files"]["pem_key_path"]
 
             # Build the shell command
-            cmd = [
-                '-r', str(requirements_txt_str),
-                '-p', str(pem_key_path),
-                '-u', user,
-                '-n', public_dns_name,
-                '-d', str(project_dir),
-                '-c', all_local_paths_cli,
-                '-e', env_cli,
-                '-v', python_version,
+            cmd_optargs = {
+                '-r': str(requirements_txt_str),
+                '-p': str(pem_key_path),
+                '-u': user,
+                '-n': public_dns_name,
+                '-d': str(project_dir),
+                '-c': all_local_paths_cli,
+                '-e': env_cli,
+                '-v': python_version,
+                '-x': processed_post_build_commands
+            }
+            self.apply_command = AgentCommand(
+                executable='/bin/bash',
+                script=self.AGENT_APPLY_SCRIPT,
+                args=cmd_optargs
+            )
+            self.set_apply_command_attributes()
 
-            ] + processed_post_build_commands
-            cmd = self.override_apply_command(cmd)
-            cmd = ['/bin/bash', self.AGENT_APPLY_SCRIPT] + cmd
+            # Set the accepted and additional optargs
+            cmd = self.apply_command.process_cmd()
 
             # Open a subprocess and stream the logs
             _, err, returncode = self.stream_logs(
@@ -1138,7 +1117,6 @@ class Ec2(Agent):
         download_files = self.agent_conf["download_files"]
         download_files_cmd = []
         for df in download_files:
-            download_files_cmd.append("-f")
             download_files_cmd.append(df)
 
         # Logging styling
@@ -1153,14 +1131,22 @@ class Ec2(Agent):
             self.check_ingress_ip(self.ec2_client, self.security_group_id)
 
         # The agent data should exist...Build the shell command
-        cmd = [
-            '/bin/bash', self.AGENT_RUN_SCRIPT,
-            '-p', str(self.pem_key_path),
-            '-u', 'ec2-user',
-            '-n', self.public_dns_name,
-            '-d', str(self.nomad_wkdir),
-            '-c', full_cmd,
-        ] + download_files_cmd
+        self.run_command = AgentCommand(
+            executable='/bin/bash',
+            script=self.AGENT_RUN_SCRIPT,
+            args={
+                '-p': str(self.pem_key_path),
+                '-u': 'ec2-user',
+                '-n': self.public_dns_name,
+                '-d': str(self.nomad_wkdir),
+                '-c': full_cmd,
+                '-f': download_files_cmd
+            }
+        )
+        self.set_run_command_attributes()
+
+        # Process the command and execute
+        cmd = self.run_command.process_cmd()
         out, _, returncode = self.stream_logs(cmd, nomad.ui.AGENT_WHICH_RUN, "run")
 
         # Log anything from stdout that was printed in the project

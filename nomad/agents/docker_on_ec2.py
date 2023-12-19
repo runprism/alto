@@ -12,7 +12,6 @@ Docker Agent.
 import argparse
 import docker
 from pathlib import Path
-import re
 from typing import Any, Dict
 
 # Nomad imports
@@ -23,7 +22,6 @@ from nomad.infras import BaseInfra
 from nomad.constants import (
     DEFAULT_LOGGER_NAME
 )
-import nomad.ui
 from nomad.agents.scripts import SCRIPTS_DIR
 from nomad.registries import BaseRegistry
 
@@ -77,28 +75,56 @@ class DockerOnEc2(Docker, Ec2):
             run_script=SCRIPTS_DIR / "docker-on-ec2" / "run.sh"
         )
 
-    def define_accepted_apply_optargs(self):
+    def set_apply_command_attributes(self):
         """
-        Define accepted optargs for the `apply` command
+        Set the acceptable apply command parameters
         """
-        return ['-p', '-u', '-n']
+        super().set_apply_command_attributes()
 
-    def define_additional_apply_optargs(self):
-        """
-        Define accepted optargs for the `apply` command
-        """
+        # Accepted optargs
+        self.apply_command.set_accepted_apply_optargs(['-p', '-u', '-n'])
+
+        # Additional optargs. Note that this function is called AFTER we push our image
+        # to our registry, so our registry configuration should have all the information
+        # we need.
         registry: BaseRegistry = self.infra.registry  # type: ignore
         username = registry.registry_conf["registry_creds"]["username"]  # type: ignore
         password = registry.registry_conf["registry_creds"]["password"]  # type: ignore
-        return {
+        additional_optargs = {
             '-a': username,
             '-z': password,
-            '-r': self.infra.infra_conf["registry"]
+            '-r': self.infra.infra_conf["registry"],
+            '-i': f"{self.image_name}:{self.image_version}"
         }
+        self.apply_command.set_additional_optargs(additional_optargs)
+
+    def set_run_command_attributes(self):
+        """
+        Set the acceptable run command parameters
+        """
+        super().set_run_command_attributes()
+
+        # Accepted optargs
+        self.run_command.set_accepted_apply_optargs(['-p', '-u', '-n'])
+
+        # Additional optargs
+        registry_obj: BaseRegistry = self.infra.registry
+        registry, username, password = registry_obj.get_login_info()
+        additional_optargs = {
+            '-a': username,
+            '-z': password,
+            '-r': registry,
+            '-i': f"{self.image_name}:{self.image_version}"
+        }
+        self.run_command.set_additional_optargs(additional_optargs)
+
+    def docker_image_kwargs(self):
+        return {"platform": "linux/amd64"}
 
     def apply(self, overrides={}):
         """
-        Create the Docker image
+        Create the Docker image, push it to the registry, and then build the EC2
+        instance.
         """
         # First, create the Docker image
         Docker.apply(
@@ -124,27 +150,10 @@ class DockerOnEc2(Docker, Ec2):
 
     def run(self, overrides={}):
         """
-        Run the project using the Docker agent
+        Run the Docker image on the EC2 instance.
         """
-
-        # Run container
-        container = client.containers.run(
-            f"{self.image_name}:{self.image_version}",
-            detach=True,
-            stdout=True,
-            remove=True,
-        )
-
-        # Get the container logs
-        container = client.containers.get(container_id=container.id)
-        for log in container.logs(stream=True, stdout=True, stderr=True):
-            log_str = log.decode('utf-8')
-            no_newline = log_str.replace("\n", "")
-            if not re.findall(r"^[\-]+$", no_newline):
-                logger.info(  # type: ignore
-                    f"{nomad.ui.AGENT_EVENT}{self.image_name}:{self.image_version}{nomad.ui.AGENT_WHICH_RUN}[run]  {nomad.ui.RESET} | {no_newline}"  # noqa: E501
-                )
-        return 0
+        returncode = Ec2.run(self)
+        return returncode
 
     def delete(self, overrides={}):
         """
