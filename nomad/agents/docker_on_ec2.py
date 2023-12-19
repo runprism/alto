@@ -108,7 +108,7 @@ class DockerOnEc2(Docker, Ec2):
         self.run_command.set_accepted_apply_optargs(['-p', '-u', '-n'])
 
         # Additional optargs
-        registry_obj: BaseRegistry = self.infra.registry
+        registry_obj: BaseRegistry = self.infra.registry  # type: ignore
         registry, username, password = registry_obj.get_login_info()
         additional_optargs = {
             '-a': username,

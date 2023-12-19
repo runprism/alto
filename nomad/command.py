@@ -22,7 +22,7 @@ class AgentCommand:
 
         # Accepted args
         self.accepted_optargs = [k for k, _ in self.args.items()]
-        self.additional_optargs = {}
+        self.additional_optargs: Dict[str, Union[str, List[str]]] = {}
 
     def set_accepted_apply_optargs(self, accepted_optargs: List[str]):
         """
@@ -30,7 +30,9 @@ class AgentCommand:
         """
         self.accepted_optargs = accepted_optargs
 
-    def set_additional_optargs(self, additional_optargs: Dict[str, str]):
+    def set_additional_optargs(self,
+        additional_optargs: Dict[str, Union[str, List[str]]]
+    ):
         """
         Define additional optargs
         """
@@ -69,4 +71,4 @@ class AgentCommand:
                 processed.append(newoptarg_value)
 
         # Add the executable and the script
-        return [self.executable, self.script] + processed
+        return [self.executable, str(self.script)] + processed

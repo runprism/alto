@@ -1130,6 +1130,10 @@ class Ec2(Agent):
         if self.security_group_id is not None:
             self.check_ingress_ip(self.ec2_client, self.security_group_id)
 
+        # For mypy
+        if not isinstance(self.public_dns_name, str):
+            raise ValueError("incompatible public DNS name!")
+
         # The agent data should exist...Build the shell command
         self.run_command = AgentCommand(
             executable='/bin/bash',
