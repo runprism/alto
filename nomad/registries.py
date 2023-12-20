@@ -126,7 +126,7 @@ class BaseRegistry(metaclass=MetaRegistry):
 class Ecr(BaseRegistry):
 
     def __init__(self,
-        infra_conf: Dict[str, str | Dict[str, Any]],
+        infra_conf: Dict[str, Union[str, Dict[str, Any]]],
         nomad_wkdir: Path,
     ):
         super().__init__(infra_conf, nomad_wkdir)
