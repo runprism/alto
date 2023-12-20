@@ -24,6 +24,10 @@ class BuildTask(BaseTask):
         """
         self.check()
         agent_type = self.infra.infra_conf["type"]
+
+        # Replace dashes
+        agent_type = agent_type.replace("-", "")
+
         agent: Agent = MetaAgent.get_agent(agent_type)(
             args=self.args,
             nomad_wkdir=self.nomad_wkdir,

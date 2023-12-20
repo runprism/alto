@@ -31,6 +31,7 @@ container_id=$(ssh -i ${pem_path} ${user}@${public_dns_name} "docker run -d ${re
 # Check if container_id is not empty
 if [ -n "$container_id" ]; then
     echo "Container started successfully. ID: $container_id"
+    echo "Streaming logs from container $container_id"
     
 	# Run docker logs for the container
     ssh -i ${pem_path} ${user}@${public_dns_name} "docker logs $container_id"
