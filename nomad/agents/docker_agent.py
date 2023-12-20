@@ -327,12 +327,13 @@ class Docker(Agent):
             filters={"label": "stage=intermediate"}
         )
         for img in images:
-            curr_tag = img.tags[0]
-            if self.image_name in curr_tag and self.image_version in curr_tag:
-                logger.info(
-                    f"{log_prefix} | Deleting image {nomad.ui.MAGENTA}{img.tags[0]}{nomad.ui.RESET}"  # noqa: E501
-                )
-                client.images.remove(
-                    image=img.tags[0],
-                    force=True,
-                )
+            if len(img.tags) > 0:
+                curr_tag = img.tags[0]
+                if self.image_name in curr_tag and self.image_version in curr_tag:
+                    logger.info(
+                        f"{log_prefix} | Deleting image {nomad.ui.MAGENTA}{img.tags[0]}{nomad.ui.RESET}"  # noqa: E501
+                    )
+                    client.images.remove(
+                        image=img.tags[0],
+                        force=True,
+                    )
