@@ -121,7 +121,8 @@ class BaseTask:
         # Create the infra
         type_key = ConfigurationKey("type", str, SUPPORTED_AGENTS)
         _check_key_in_conf(type_key, conf["infra"], "infra")
-        self.infra = MetaInfra.get_infra(conf["infra"]["type"])(
+        conf_type = conf["infra"]["type"].replace("-", "")
+        self.infra = MetaInfra.get_infra(conf_type)(
             infra_conf=conf["infra"],
             nomad_wkdir=self.nomad_wkdir
         )
