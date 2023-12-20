@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional, Union
 import json
 from jinja2 import Environment, FileSystemLoader
 import shutil
+import requests
 
 # Nomad imports
 from nomad.agents.base import Agent
@@ -328,12 +329,17 @@ class Docker(Agent):
         )
         for img in images:
             if len(img.tags) > 0:
-                curr_tag = img.tags[0]
-                if self.image_name in curr_tag and self.image_version in curr_tag:
-                    logger.info(
-                        f"{log_prefix} | Deleting image {nomad.ui.MAGENTA}{img.tags[0]}{nomad.ui.RESET}"  # noqa: E501
-                    )
-                    client.images.remove(
-                        image=img.tags[0],
-                        force=True,
-                    )
+                for curr_tag in img.tags:
+                    if self.image_name in curr_tag and self.image_version in curr_tag:
+                        try:
+                            client.images.remove(
+                                image=curr_tag,
+                                force=True,
+                            )
+                            logger.info(
+                                f"{log_prefix} | Deleting image {nomad.ui.MAGENTA}{curr_tag}{nomad.ui.RESET}"  # noqa: E501
+                            )
+
+                        # Just in case...
+                        except requests.exceptions.HTTPError:
+                            continue
