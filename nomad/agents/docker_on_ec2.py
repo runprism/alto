@@ -134,6 +134,9 @@ class DockerOnEc2(Docker, Ec2):
             }
         )
 
+        # Add the image version to the instance name
+        self.instance_name += f":{self.image_version}"
+
         # Next, push the Docker image to ECR
         if not hasattr(self.infra, "registry"):
             raise ValueError("could not find `registry` attribute")

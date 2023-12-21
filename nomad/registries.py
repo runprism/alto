@@ -186,7 +186,7 @@ class Ecr(BaseRegistry):
             True if the repository was created successfully, False otherwise.
         """
         ecr_client = boto3.client('ecr', region_name=region)
-        prefix = f"{nomad.ui.AGENT_EVENT}{repository_name}:{image_tag}{nomad.ui.AGENT_WHICH_PUSH}[push] {nomad.ui.RESET}"  # noqa: E501
+        prefix = f"{nomad.ui.AGENT_EVENT}{repository_name}:{image_tag}{nomad.ui.AGENT_WHICH_PUSH}[push]  {nomad.ui.RESET}"  # noqa: E501
 
         try:
             # Create ECR repository
@@ -247,7 +247,7 @@ class Ecr(BaseRegistry):
             if " ".join(msg) != "":
                 log = " ".join(msg)
                 logger.info(
-                    f"{nomad.ui.AGENT_EVENT}{image_name}:{image_tag}{nomad.ui.AGENT_WHICH_PUSH}[push] {nomad.ui.RESET} | {log}"  # noqa: E501
+                    f"{nomad.ui.AGENT_EVENT}{image_name}:{image_tag}{nomad.ui.AGENT_WHICH_PUSH}[push]  {nomad.ui.RESET} | {log}"  # noqa: E501
                 )
 
 
@@ -318,5 +318,5 @@ class Dockerhub(BaseRegistry):
             if " ".join(msg) != "":
                 log = " ".join(msg)
                 logger.info(
-                    f"{nomad.ui.AGENT_EVENT}{image_name}:{image_tag}{nomad.ui.AGENT_WHICH_PUSH}[push] {nomad.ui.RESET} | {log}"  # noqa: E501
+                    f"{nomad.ui.AGENT_EVENT}{image_name}:{image_tag}{nomad.ui.AGENT_WHICH_PUSH}[push]  {nomad.ui.RESET} | {log}"  # noqa: E501
                 )

@@ -277,7 +277,7 @@ class Docker(Agent):
                     if len(re.findall(r'^\s*$', log)) > 0:
                         continue
                     logger.info(
-                        f"{nomad.ui.AGENT_EVENT}{self.image_name}:{new_img_version}{nomad.ui.AGENT_WHICH_BUILD}[build]{nomad.ui.RESET} | {log}"  # noqa: E501
+                        f"{nomad.ui.AGENT_EVENT}{self.image_name}:{new_img_version}{nomad.ui.AGENT_WHICH_BUILD}[build] {nomad.ui.RESET} | {log}"  # noqa: E501
                     )
 
         # Remove the old image
