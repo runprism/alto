@@ -33,7 +33,7 @@ logger = logging.getLogger(DEFAULT_LOGGER_NAME)
 
 
 # Dividers
-IMAGE_DIVIDER = Divider("image")
+PUSH_DIVIDER = Divider("push")
 
 
 # Metaclass
@@ -192,7 +192,7 @@ class Ecr(BaseRegistry):
             True if the repository was created successfully, False otherwise.
         """
         ecr_client = boto3.client('ecr', region_name=region)
-        log_prefix = f"{nomad.ui.AGENT_EVENT}{repository_name}:{image_tag}{nomad.ui.AGENT_WHICH_PUSH}{IMAGE_DIVIDER.__str__()}{nomad.ui.RESET}|"  # noqa: E501
+        log_prefix = f"{nomad.ui.AGENT_EVENT}{repository_name}{nomad.ui.IMAGE_PUSH_EVENT}{PUSH_DIVIDER.__str__()}{nomad.ui.RESET}|"  # noqa: E501
 
         try:
             # Create ECR repository
@@ -235,7 +235,7 @@ class Ecr(BaseRegistry):
         docker_client.login(username, password, registry=self.image_conf["registry"])
 
         # Log prefix
-        log_prefix = f"{nomad.ui.AGENT_EVENT}{image_name}:{image_tag}{nomad.ui.IMAGE_EVENT}{IMAGE_DIVIDER.__str__()}{nomad.ui.RESET}|"  # noqa
+        log_prefix = f"{nomad.ui.AGENT_EVENT}{image_name}{nomad.ui.IMAGE_PUSH_EVENT}{PUSH_DIVIDER.__str__()}{nomad.ui.RESET}|"  # noqa
 
         # Push the Docker image to ECR
         for line in docker_client.images.push(
@@ -310,7 +310,7 @@ class Dockerhub(BaseRegistry):
         image.tag(dockerhub_image, tag=image_tag)
 
         # Log prefix
-        log_prefix = f"{nomad.ui.AGENT_EVENT}{image_name}:{image_tag}{nomad.ui.AGENT_WHICH_PUSH}{IMAGE_DIVIDER.__str__()}{nomad.ui.RESET}|"  # noqa
+        log_prefix = f"{nomad.ui.AGENT_EVENT}{image_name}{nomad.ui.IMAGE_PUSH_EVENT}{PUSH_DIVIDER.__str__()}{nomad.ui.RESET}|"  # noqa
 
         # Push the Docker image to ECR
         for line in docker_client.images.push(

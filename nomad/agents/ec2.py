@@ -1032,10 +1032,6 @@ class Ec2(Agent):
                 build_kwargs={"platform": "linux/amd64"},
             )
 
-            # Add the Docker version to the instance name (for consistent logging)
-            if hasattr(self.image, "image_version"):
-                self.instance_name += f":{self.image.image_version}"
-
         # Logging prefix
         log_prefix = f"{nomad.ui.AGENT_EVENT}{self.instance_name}{nomad.ui.AGENT_WHICH_BUILD}{BUILD_DIVIDER.__str__()}{nomad.ui.RESET}|"  # noqa: E501
 

@@ -91,8 +91,9 @@ class Docker(BaseImage, ConfigMixin):
         # Iterate through current images and get all images that resemble our image
         # name.
         img_list = client.images.list()
-        img_names = []
-        img_versions = []
+        self.prev_images = []
+        self.prev_img_names: List[str] = []
+        self.prev_img_versions: List[str] = []
         for img in img_list:
             if img.tags == []:
                 continue
@@ -104,25 +105,26 @@ class Docker(BaseImage, ConfigMixin):
                     )) > 0:  # noqa: E501
                         name = _tag.split(":")[0]
                         version = _tag.split(":")[1]
-                        img_names.append(name)
-                        img_versions.append(version)
+                        self.prev_images.append(_tag)
+                        self.prev_img_names.append(name)
+                        self.prev_img_versions.append(version)
 
         # If more than one image is found, then raise a warning and default to the
         # latest image.
-        img_versions = list(set(img_versions))
-        if len(img_versions) > 1:
+        self.prev_img_versions = list(set(self.prev_img_versions))
+        if len(self.prev_img_versions) > 1:
 
             # We need to capture the float and string formats of the image version.
-            latest_version_float = max([float(x) for x in img_versions])
+            latest_version_float = max([float(x) for x in self.prev_img_versions])
             latest_version_str: str
-            for v in img_versions:
+            for v in self.prev_img_versions:
                 if float(v) == latest_version_float:
                     latest_version_str = v
 
             # Make sure there is a corresponding image to this version. This should
             # always be the case...
             try:
-                _ = img_names[img_versions.index(latest_version_str)]
+                _ = self.prev_img_names[self.prev_img_versions.index(latest_version_str)]  # noqa
             except KeyError:
                 raise ValueError(
                     f"could not find image associated with `{latest_version_str}`"
@@ -135,8 +137,8 @@ class Docker(BaseImage, ConfigMixin):
             self.image_version = latest_version_str
 
         # If only one image is found, then we're fine
-        elif len(img_versions) == 1:
-            self.image_version = img_versions[0]
+        elif len(self.prev_img_versions) == 1:
+            self.image_version = self.prev_img_versions[0]
 
         # Otherwise, this is the first time we're creating the docker image.
         else:
@@ -181,8 +183,9 @@ class Docker(BaseImage, ConfigMixin):
             if bool(re.match(r'^\s*$', context)):
                 raise ValueError("`context` is blank!")
 
-            # Check if the Dockerfile exists
-            if not Path(context / 'Dockerfile').is_file():
+            # Convert to a Path and check if the Dockerfile exists
+            context = self.nomad_wkdir / context
+            if not (Path(context) / 'Dockerfile').is_file():
                 raise ValueError(
                     f"`{str(Path(context / 'Dockerfile'))}` not found!"
                 )
@@ -260,6 +263,16 @@ class Docker(BaseImage, ConfigMixin):
         """
         context = self.context
 
+        # Update the version number. If there is no image, then set the first image
+        # to be version 1.0
+        if self.image_version is None:
+            new_img_version = "1.0"
+        else:
+            new_img_version = str(round(float(self.image_version) + 0.1, 1))
+
+        # Log prefix
+        log_prefix = f"{nomad.ui.AGENT_EVENT}{self.image_name}{nomad.ui.IMAGE_EVENT}{IMAGE_DIVIDER.__str__()}{nomad.ui.RESET}|"  # noqa
+
         # If the context is not specified, then the base image must be specified. Build
         # the Dockerfile from the configuration YAML.
         if context == "":
@@ -299,16 +312,6 @@ class Docker(BaseImage, ConfigMixin):
             env_dict = self.parse_environment_variables(agent_conf)
             env_dockerfile = "\n".join([f"ENV {k}={v}" for k, v in env_dict.items()])
 
-            # Update the version number. If there is no image, then set the first image
-            # to be version 1.0
-            if self.image_version is None:
-                new_img_version = "1.0"
-            else:
-                new_img_version = str(round(float(self.image_version) + 0.1, 1))
-
-            # Log prefix
-            log_prefix = f"{nomad.ui.AGENT_EVENT}{self.image_name}:{new_img_version}{nomad.ui.IMAGE_EVENT}{IMAGE_DIVIDER.__str__()}{nomad.ui.RESET}|"  # noqa
-
             # Open Jinja template
             env = Environment(loader=FileSystemLoader(SCRIPTS_DIR / 'docker'))
             jinja_template = env.get_template("Dockerfile")
@@ -329,7 +332,7 @@ class Docker(BaseImage, ConfigMixin):
 
         # If a Dockerfile path is given, then just use that
         else:
-            dockerfile_path = Path(context)
+            dockerfile_path = Path(context) / "Dockerfile"
 
         # Create image
         resp = self.build_client.build(
@@ -353,10 +356,19 @@ class Docker(BaseImage, ConfigMixin):
 
         # Remove the old image
         if self.image_version is not None:
-            client.images.remove(
-                image=f"{self.image_name}:{self.image_version}",
-                force=True
-            )
+            self.prev_images = list(set(self.prev_images))
+            for img in self.prev_images:
+                try:
+                    client.images.remove(
+                        image=img,
+                        force=True
+                    )
+
+                # We sometimes see this because previous, deleted images are still
+                # returned by the Docker API call. Ignore.
+                except requests.exceptions.HTTPError:
+                    continue
+
         self.image_version = new_img_version
 
         # If nothing has gone wrong, then we should be able to get the image
@@ -375,7 +387,7 @@ class Docker(BaseImage, ConfigMixin):
         """
         Delete the Docker agent
         """
-        log_prefix = f"{nomad.ui.AGENT_EVENT}{self.image_name}:{self.image_version}{nomad.ui.RED}{DELETE_DIVIDER.__str__()}{nomad.ui.RESET}|"  # noqa: E501
+        log_prefix = f"{nomad.ui.AGENT_EVENT}{self.image_name}{nomad.ui.RED}{DELETE_DIVIDER.__str__()}{nomad.ui.RESET}|"  # noqa: E501
 
         # Remove all images with the label "stage=intermediate"
         images = client.images.list(

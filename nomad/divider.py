@@ -2,6 +2,8 @@
 Dividers used in Nomad's logging
 """
 
+import nomad.ui
+
 # Constants
 LOG_DIVIDERS = [
     "image",
@@ -19,4 +21,4 @@ class Divider:
         self.divider = divider
 
     def __str__(self) -> str:
-        return f"[{self.divider}]" + " " * ((MAX_LENGTH + 1) - len(self.divider))
+        return f"{nomad.ui.BOLD}[{self.divider}]" + " " * ((MAX_LENGTH + 1) - len(self.divider))  # noqa
