@@ -10,8 +10,6 @@ from nomad.agents.meta import MetaAgent
 from nomad.agents import (  # noqa: F401
     meta,
     ec2,
-    docker_agent,
-    docker_on_ec2,
 )
 from nomad.tasks.base import BaseTask
 
@@ -36,6 +34,7 @@ class ApplyTask(BaseTask):
             agent_conf=self.conf,
             infra=self.infra,
             entrypoint=self.entrypoint,
+            image=self.image,
         )
         returncode = agent.apply()
         if returncode != 0:

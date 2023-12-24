@@ -31,6 +31,12 @@ SUPPORTED_AGENTS = [
 ]
 
 
+# Supported images
+SUPPORTED_IMAGES = [
+    "docker",
+]
+
+
 # Supported image registries
 SUPPORTED_IMAGE_REGISTRIES = [
     "dockerhub",

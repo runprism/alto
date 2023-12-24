@@ -10,24 +10,16 @@ import re
 import requests
 
 # Internal imports
-from nomad.registries import (  # noqa
-    MetaRegistry,
-    Ecr,
-    Dockerhub,
-)
 from nomad.constants import (
     DEFAULT_LOGGER_NAME,
     SUPPORTED_AGENTS,
     EC2_SUPPORTED_INSTANCE_TYPES,
-    SUPPORTED_IMAGE_REGISTRIES,
 )
 from nomad.utils import (
     ConfigurationKey,
     _check_key_in_conf,
     _check_optional_key_in_conf,
 )
-import nomad.ui
-
 
 # Logger
 import logging
@@ -201,90 +193,3 @@ class Ec2(BaseInfra):
                         # If it does, return
                         infra_conf["python_version"] = _version
                         return infra_conf
-
-
-class Docker(BaseInfra):
-    """
-    Docker infra. This is defined as an infra conf with `type = docker`. Acceptable
-    nested key-value pairs are:
-
-        base_image: base image to use
-        server_url: Docker's server URL
-    """
-    DEFAULT_SERVER_URL = "unix://var/run/docker.sock"
-    DEFAULT_REGISTRY = "ecr"
-
-    def check_conf(self):
-        """
-        Confirm that the infra configuration is acceptable
-        """
-        BaseInfra.check_conf(self)
-
-        # Required keys
-        required_keys = [
-            ConfigurationKey("base_image", str),
-        ]
-        for _k in required_keys:
-            _check_key_in_conf(_k, self.infra_conf, "infra")
-
-        # Check for the `server_url``
-        optional_keys = [
-            ConfigurationKey("server_url", str),
-            ConfigurationKey("context", str),
-        ]
-        for _k in optional_keys:
-            _check_optional_key_in_conf(_k, self.infra_conf)
-
-        # Update the `server_url` within the infra configuration
-        if "server_url" not in self.infra_conf.keys():
-            self.infra_conf["server_url"] = self.DEFAULT_SERVER_URL
-        elif self.infra_conf["server_url"] is None:
-            self.infra_conf["server_url"] = self.DEFAULT_SERVER_URL
-
-
-class DockerOnEc2(Docker, Ec2):
-    """
-    Docker on EC2 infra. This has the same configuration as the Docker infra + the EC2
-    infra. The three differences are:
-        - Ignore the `python_version` EC2 infra...this is superceded by `base_image`
-        - Add `registry` key
-        - Add `registry_creds` key
-
-    The latter two control where the images lives (e.g., ECR, Dockerhub).
-    """
-    DEFAULT_SERVER_URL = "unix://var/run/docker.sock"
-
-    def check_conf(self):
-        """
-        Confirm that the infra configuration is acceptable
-        """
-        Docker.check_conf(self)
-        Ec2.check_conf(self)
-
-        # Update `python_version
-        if self.infra_conf["python_version"] != "":
-            DEFAULT_LOGGER.warning(
-                "Ignoring `python_vesrion`...this is superceded by `base_image`"
-            )
-            self.infra_conf["python_version"] = ""
-
-        # Check the `registry` key
-        if "registry" not in self.infra_conf.keys():
-            DEFAULT_LOGGER.info(
-                f"Did not find `registry` key in infra...defaulting to {nomad.ui.MAGENTA}ECR{nomad.ui.RESET}"  # noqa
-            )
-            registry = "ecr"
-        else:
-            registry = self.infra_conf["registry"]
-
-        if registry not in SUPPORTED_IMAGE_REGISTRIES:
-            raise ValueError(
-                f"unsupported registry `{registry}`...supported values are {str(SUPPORTED_IMAGE_REGISTRIES)}"  # noqa
-            )
-
-        # Create the registry item
-        self.infra_conf["registry"] = registry
-        self.registry = MetaRegistry.get_registry(registry)(
-            infra_conf=self.infra_conf,
-            nomad_wkdir=self.nomad_wkdir,
-        )

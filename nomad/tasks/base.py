@@ -11,6 +11,7 @@ from typing import Any, Dict
 # Internal imports
 from nomad.constants import (
     SUPPORTED_AGENTS,
+    SUPPORTED_IMAGES,
 )
 from nomad.utils import (
     ConfigurationKey,
@@ -26,14 +27,17 @@ from nomad.entrypoints import (  # noqa
     BaseEntrypoint,
     Project,
     Function,
-    Jupyter
+    Jupyter,
 )
 from nomad.infras import (  # noqa
     MetaInfra,
     BaseInfra,
     Ec2,
-    Docker,
-    DockerOnEc2
+)
+from nomad.images import (  # noqa
+    MetaImage,
+    BaseImage,
+    Docker
 )
 
 
@@ -80,6 +84,7 @@ class BaseTask:
         self.confirm_matrix_conf_structure(self.conf)
         self.confirm_entrypoint_conf_structure(self.conf)
         self.confirm_additional_paths_conf_structure(self.conf)
+        self.confirm_image_conf_structure(self.conf)
         self.conf = self.define_post_build_cmds(self.conf)
         self.conf = self.define_download_files(self.conf)
 
@@ -129,6 +134,7 @@ class BaseTask:
 
         # Other optional keys
         optional_keys = [
+            ConfigurationKey("image", dict),
             ConfigurationKey("env", dict),
             ConfigurationKey("requirements", str),
             ConfigurationKey("post_build_cmds", list),
@@ -198,6 +204,43 @@ class BaseTask:
             nomad_wkdir=self.nomad_wkdir,
         )
 
+    def confirm_image_conf_structure(self,
+        conf: Dict[str, Any]
+    ):
+        """
+        At this point, the `image` key may or may not exist. If it does exist, then we
+        want to create the associated `Image` class instance.
+
+        args:
+            conf: agent configuration
+        returns:
+            True if the `image` section is properly structured
+        raises:
+            ValueError() if the `image` section is not properly structured
+        """
+        if "image" in conf.keys():
+            image = conf["image"]
+            if image == {}:
+                return None
+
+            # Check that `type` exists
+            if "type" not in image.keys():
+                raise ValueError(
+                    "`image` configuration missing a `type`!"
+                )
+            if image["type"] not in SUPPORTED_IMAGES:
+                raise ValueError(
+                    f"unrecognized image type `{image['type']}`"
+                )
+            self.image = MetaImage.get_image(image["type"])(
+                nomad_wkdir=self.nomad_wkdir,
+                image_name=self.name,
+                image_conf=image,
+            )
+
+        else:
+            self.image = None
+
     def confirm_additional_paths_conf_structure(self,
         conf: Dict[str, Any]
     ):
@@ -251,16 +294,6 @@ class BaseTask:
             for cmd in [
                 "pip install ipython ipykernel papermill",
                 f'ipython kernel install --name "{ep.kernel}" --user'
-            ]:
-                if cmd not in post_build_cmds:
-                    post_build_cmds.append(cmd)
-
-        # For `DockerOnEc2` infrastructures, we need to install Docker in our EC2 build.
-        if isinstance(self.infra, DockerOnEc2):
-            for cmd in [
-                "sudo yum install -y docker",
-                "sudo service docker start",
-                "sudo docker --version"
             ]:
                 if cmd not in post_build_cmds:
                     post_build_cmds.append(cmd)

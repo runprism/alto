@@ -17,6 +17,8 @@ import nomad.ui
 from nomad.entrypoints import BaseEntrypoint
 from nomad.infras import BaseInfra
 from nomad.command import AgentCommand
+from nomad.images import BaseImage, Docker as DockerImage
+from nomad.divider import Divider
 
 # Standard library imports
 import argparse
@@ -40,6 +42,11 @@ import stat
 
 import logging
 logger = logging.getLogger(DEFAULT_LOGGER_NAME)
+
+# Dividers
+BUILD_DIVIDER = Divider("build")
+RUN_DIVIDER = Divider("run")
+DELETE_DIVIDER = Divider("delete")
 
 
 ####################
@@ -69,18 +76,23 @@ class Ec2(Agent):
         agent_conf: Dict[str, Any],
         infra: BaseInfra,
         entrypoint: BaseEntrypoint,
+        image: Optional[BaseImage],
         mode: str = "prod"
     ):
         Agent.__init__(
-            self, args, nomad_wkdir, agent_name, agent_conf, infra, entrypoint, mode
+            self, args, nomad_wkdir, agent_name, agent_conf, infra, entrypoint, image, mode  # noqa
         )
-
-        # Check additional configuration
 
         # Bash dir
         scripts_dir = f"{os.path.dirname(__file__)}/scripts"
         self.AGENT_APPLY_SCRIPT = f"{scripts_dir}/ec2/apply.sh"
         self.AGENT_RUN_SCRIPT = f"{scripts_dir}/ec2/run.sh"
+
+        # Use slightly different scripts if the user wants to run a Docker image on
+        # their EC2 instance.
+        if isinstance(image, DockerImage):
+            self.AGENT_APPLY_SCRIPT = f"{scripts_dir}/docker/ec2/apply.sh"
+            self.AGENT_RUN_SCRIPT = f"{scripts_dir}/docker/ec2/run.sh"
 
         # Create the client
         self.aws_cli()
@@ -689,7 +701,7 @@ class Ec2(Agent):
             resources = self.check_resources(ec2_client, instance_name, instance_id)
 
             # Log prefix
-            log_prefix = f"{nomad.ui.AGENT_EVENT}{instance_name}{nomad.ui.AGENT_WHICH_BUILD}[build]{nomad.ui.RESET}"  # noqa: E501
+            log_prefix = f"{nomad.ui.AGENT_EVENT}{instance_name}{nomad.ui.AGENT_WHICH_BUILD}{BUILD_DIVIDER.__str__()}{nomad.ui.RESET}|"  # noqa: E501
 
             def _create_exception(resource):
                 return ValueError('\n'.join([
@@ -707,7 +719,7 @@ class Ec2(Agent):
                 )
                 log_instance_name = f"{nomad.ui.MAGENTA}{instance_name}{nomad.ui.RESET}"  # noqa: E501
                 logger.info(
-                    f"{log_prefix}  | Created key pair {log_instance_name}"
+                    f"{log_prefix} Created key pair {log_instance_name}"
                 )
 
                 # Write the data to the JSON
@@ -730,7 +742,7 @@ class Ec2(Agent):
                 log_instance_name = f"{nomad.ui.MAGENTA}{instance_name}{nomad.ui.RESET}"  # noqa: E501
                 log_instance_path = f"{nomad.ui.MAGENTA}{str(pem_key_path)}{nomad.ui.RESET}"  # noqa: E501
                 logger.info(
-                    f"{log_prefix}  | Using existing key-pair {log_instance_name} at {log_instance_path}"  # noqa: E501
+                    f"{log_prefix} Using existing key-pair {log_instance_name} at {log_instance_path}"  # noqa: E501
                 )
 
             # Security group
@@ -744,7 +756,7 @@ class Ec2(Agent):
                 log_security_group_id = f"{nomad.ui.MAGENTA}{security_group_id}{nomad.ui.RESET}"  # noqa: E501
                 log_vpc_id = f"{nomad.ui.MAGENTA}{vpc_id}{nomad.ui.RESET}"  # noqa: E501
                 logger.info(
-                    f"{log_prefix}  | Created security group with ID {log_security_group_id} in VPC {log_vpc_id}"  # noqa: E501
+                    f"{log_prefix} Created security group with ID {log_security_group_id} in VPC {log_vpc_id}"  # noqa: E501
                 )
 
                 # Write the data to the JSON
@@ -761,7 +773,7 @@ class Ec2(Agent):
                 self.check_ingress_ip(ec2_client, security_group_id)
                 log_security_group_id = f"{nomad.ui.MAGENTA}{security_group_id}{nomad.ui.RESET}"  # noqa: E501
                 logger.info(
-                    f"{log_prefix}  | Using existing security group {log_security_group_id}"  # noqa: E501
+                    f"{log_prefix} Using existing security group {log_security_group_id}"  # noqa: E501
                 )
 
             # Log instance ID template
@@ -794,7 +806,7 @@ class Ec2(Agent):
 
                 # Log
                 logger.info(
-                    f"{log_prefix}  | Created EC2 instance with ID {log_instance_id_template.format(instance_id=instance_id)}"  # noqa: E501
+                    f"{log_prefix} Created EC2 instance with ID {log_instance_id_template.format(instance_id=instance_id)}"  # noqa: E501
                 )
                 time.sleep(1)
             else:
@@ -804,7 +816,7 @@ class Ec2(Agent):
 
                 # Log
                 logger.info(
-                    f"{log_prefix}  | Using existing EC2 instance with ID {log_instance_id_template.format(instance_id=instance_id)}"  # noqa: E501
+                    f"{log_prefix} Using existing EC2 instance with ID {log_instance_id_template.format(instance_id=instance_id)}"  # noqa: E501
                 )
 
             # Instance data
@@ -825,7 +837,7 @@ class Ec2(Agent):
                     # Log
                     log_pending_status = f"{nomad.ui.YELLOW}pending{nomad.ui.RESET}"  # noqa: E501
                     logger.info(
-                        f"{log_prefix}  | Instance {log_instance_id_template.format(instance_id=instance_id)} is {log_pending_status}... checking again in 5 seconds"  # noqa: E501
+                        f"{log_prefix} Instance {log_instance_id_template.format(instance_id=instance_id)} is {log_pending_status}... checking again in 5 seconds"  # noqa: E501
                     )
                     resp = self.check_instance_data(instance_id)
                     time.sleep(5)
@@ -864,10 +876,10 @@ class Ec2(Agent):
             deleted_resources = self.delete_resources_in_json()
 
             # Log the deleted resources
-            log_prefix = f"{nomad.ui.AGENT_EVENT}{self.instance_name}{nomad.ui.RED}[delete]{nomad.ui.RESET}"  # noqa: E501
+            log_prefix = f"{nomad.ui.AGENT_EVENT}{self.instance_name}{nomad.ui.RED}{DELETE_DIVIDER.__str__()}{nomad.ui.RESET}|"  # noqa: E501
             for rs_name, rs_id in deleted_resources.items():
                 logger.info(
-                    f"{log_prefix} | Deleting {rs_name} `{rs_id}`"
+                    f"{log_prefix} Deleting {rs_name} `{rs_id}`"
                 )
             raise e
 
@@ -901,21 +913,21 @@ class Ec2(Agent):
         which: str,
         output: Any,
     ):
-        divider = " | "
         if which == "run":
-            divider = "    | "
+            divider = RUN_DIVIDER
         elif which == "build":
-            divider = "  | "
+            divider = BUILD_DIVIDER
+        log_prefix = f"{nomad.ui.AGENT_EVENT}{self.instance_name}{color}{divider.__str__()}{nomad.ui.RESET}|"  # noqa
         if output:
             if isinstance(output, str):
                 if not re.findall(r"^[\-]+$", output.rstrip()):
                     logger.info(
-                        f"{nomad.ui.AGENT_EVENT}{self.instance_name}{color}[{which}]{nomad.ui.RESET}{divider}{output.rstrip()}"  # noqa: E501
+                        f"{log_prefix} {output.rstrip()}"  # noqa: E501
                     )
             else:
                 if not re.findall(r"^[\-]+$", output.decode().rstrip()):
                     logger.info(
-                        f"{nomad.ui.AGENT_EVENT}{self.instance_name}{color}[{which}]{nomad.ui.RESET}{divider}{output.decode().rstrip()}"  # noqa: E501
+                        f"{log_prefix} {output.decode().rstrip()}"  # noqa: E501
                     )
 
     def stream_logs(self,
@@ -968,6 +980,22 @@ class Ec2(Agent):
         if not hasattr(self, "apply_command"):
             raise ValueError("object does not have `apply_command` attribute!")
 
+        # If we're running a Docker image on our EC2 instance, then update the arguments
+        if isinstance(self.image, DockerImage):
+            self.apply_command.set_accepted_apply_optargs(['-p', '-u', '-n'])
+
+            # Additional optargs. Note that this function is called AFTER we push our
+            # image to our registry, so our registry configuration should have all the
+            # information we need.
+            registry, username, password = self.image.registry.get_login_info()
+            additional_optargs = {
+                '-a': username,
+                '-z': password,
+                '-r': registry,
+                '-i': f"{self.image.image_name}:{self.image.image_version}"
+            }
+            self.apply_command.set_additional_optargs(additional_optargs)
+
     def set_run_command_attributes(self):
         """
         Set the acceptable run command parameters
@@ -975,17 +1003,58 @@ class Ec2(Agent):
         if not hasattr(self, "run_command"):
             raise ValueError("object does not have `run_command` attribute!")
 
+        # If we're running a Docker image on our EC2 instance, then update the arguments
+        if isinstance(self.image, DockerImage):
+            self.run_command.set_accepted_apply_optargs(['-p', '-u', '-n'])
+
+            # Additional optargs. Note that this function is called AFTER we push our
+            # image to our registry, so our registry configuration should have all the
+            # information we need.
+            registry, username, password = self.image.registry.get_login_info()
+            additional_optargs = {
+                '-a': username,
+                '-z': password,
+                '-r': registry,
+                '-i': f"{self.image.image_name}:{self.image.image_version}"
+            }
+            self.run_command.set_additional_optargs(additional_optargs)
+
     def apply(self, overrides={}):
         """
         Create the EC2 instance image
         """
+        # Build the image, if necessary
+        if self.image is not None:
+            self.image.build(
+                self.agent_conf,
+                self.entrypoint,
+                jinja_template_overrides={"other_build_cmds": ""},
+                build_kwargs={"platform": "linux/amd64"},
+            )
+
+            # Add the Docker version to the instance name (for consistent logging)
+            if hasattr(self.image, "image_version"):
+                self.instance_name += f":{self.image.image_version}"
+
+        # Logging prefix
+        log_prefix = f"{nomad.ui.AGENT_EVENT}{self.instance_name}{nomad.ui.AGENT_WHICH_BUILD}{BUILD_DIVIDER.__str__()}{nomad.ui.RESET}|"  # noqa: E501
+
         # Infra
         instance_type = self.parse_infra_key(self.infra.infra_conf, "instance_type")
         ami_image = self.parse_infra_key(self.infra.infra_conf, "ami_image")
         python_version = self.parse_infra_key(self.infra.infra_conf, "python_version")
 
+        # If the user is using an image, then ignore the Python version
+        if self.image is not None:
+            if python_version != "":
+                logger.info(
+                    f"{log_prefix} Ignoring Python version in favor of newly built image"  # noqa
+                )
+
         # requirements.txt path
-        requirements_txt_path = Path(self.parse_requirements(self.agent_conf))
+        requirements_txt_path = Path(
+            self.parse_requirements(self.nomad_wkdir, self.agent_conf)
+        )
         if str(requirements_txt_path) == ".":
             requirements_txt_str = ""
         else:
@@ -1056,7 +1125,7 @@ class Ec2(Agent):
             # Log anything from stderr that was printed in the project
             for line in err.readlines():
                 logger.info(
-                    f"{nomad.ui.AGENT_EVENT}{self.instance_name}{nomad.ui.AGENT_WHICH_BUILD}[build]{nomad.ui.RESET}  | {line.rstrip()}"  # noqa: E501
+                    f"{log_prefix} {line.rstrip()}"  # noqa: E501
                 )
 
             # A return code of 8 indicates that the SSH connection timed out. Try
@@ -1066,7 +1135,7 @@ class Ec2(Agent):
                 if self.security_group_id is None:
                     raise ValueError("`security_group_id` is still None!")
                 logger.info(
-                    f"{nomad.ui.AGENT_EVENT}{self.instance_name}{nomad.ui.AGENT_WHICH_BUILD}[build]{nomad.ui.RESET}  | SSH connection timed out...checking security group ingress rules and trying again"  # noqa: E501
+                    f"{log_prefix} SSH connection timed out...checking security group ingress rules and trying again"  # noqa: E501
                 )
 
                 # Add the current IP to the security ingress rules
@@ -1079,7 +1148,7 @@ class Ec2(Agent):
                 if added_ip is None:
                     self.args.whitelist_all = True
                     logger.info(
-                        f"{nomad.ui.AGENT_EVENT}{self.instance_name}{nomad.ui.AGENT_WHICH_BUILD}[build]{nomad.ui.RESET}  | Current IP address already whitelisted...whitelisting 0.0.0.0/0"  # noqa: E501
+                        f"{log_prefix} Current IP address already whitelisted...whitelisting 0.0.0.0/0"  # noqa: E501
                     )
                     self.add_ingress_rule(
                         self.ec2_client,
@@ -1153,10 +1222,13 @@ class Ec2(Agent):
         cmd = self.run_command.process_cmd()
         out, _, returncode = self.stream_logs(cmd, nomad.ui.AGENT_WHICH_RUN, "run")
 
+        # Log prefix
+        log_prefix = f"{nomad.ui.AGENT_EVENT}{self.instance_name}{nomad.ui.AGENT_WHICH_RUN}{RUN_DIVIDER.__str__()}{nomad.ui.RESET}|"  # noqa
+
         # Log anything from stdout that was printed in the project
         for line in out.readlines():
             logger.info(
-                f"{nomad.ui.AGENT_EVENT}{self.instance_name}{nomad.ui.AGENT_WHICH_RUN}[run]{nomad.ui.RESET}    | {line.rstrip()}"  # noqa: E501
+                f"{log_prefix} {line.rstrip()}"  # noqa: E501
             )
 
         # Return the returncode.
@@ -1171,6 +1243,10 @@ class Ec2(Agent):
 
         In addition, remove the PEM key from our local files
         """
+        # Delete the image, if it exists
+        if self.image is not None:
+            self.image.delete()
+
         # Logging styling
         if self.instance_name is None:
             logger.info(  # type: ignore
@@ -1179,18 +1255,18 @@ class Ec2(Agent):
             return
 
         # Logging styling
-        log_prefix = f"{nomad.ui.AGENT_EVENT}{self.instance_name}{nomad.ui.RED}[delete]{nomad.ui.RESET}"  # noqa: E501
+        log_prefix = f"{nomad.ui.AGENT_EVENT}{self.instance_name}{nomad.ui.RED}{DELETE_DIVIDER.__str__()}{nomad.ui.RESET}|"  # noqa: E501
 
         # Key pair
         if self.key_name is None:
             logger.info(
-                f"{log_prefix} | No agent data found!"
+                f"{log_prefix} No agent data found!"
             )
         else:
             log_key_pair = f"{nomad.ui.MAGENTA}{self.key_name}{nomad.ui.RESET}"
             log_key_path = f"{nomad.ui.MAGENTA}{str(self.pem_key_path)}{nomad.ui.RESET}"  # noqa: E501
             logger.info(
-                f"{log_prefix} | Deleting key-pair {log_key_pair} at {log_key_path}"
+                f"{log_prefix} Deleting key-pair {log_key_pair} at {log_key_path}"
             )
             self.ec2_client.delete_key_pair(
                 KeyName=self.key_name
@@ -1201,18 +1277,18 @@ class Ec2(Agent):
             # If this file never existed, then pass
             except FileNotFoundError:
                 logger.info(
-                    f"{log_prefix} | Key-pair {log_key_pair} at {log_key_path} doesn't exist!"  # noqa: E501
+                    f"{log_prefix} Key-pair {log_key_pair} at {log_key_path} doesn't exist!"  # noqa: E501
                 )
 
         # Instance
         if self.instance_id is None:
             logger.info(
-                f"{log_prefix} | No instance found!"
+                f"{log_prefix} No instance found!"
             )
         else:
             log_instance_id = f"{nomad.ui.MAGENTA}{self.instance_id}{nomad.ui.RESET}"  # noqa: E501
             logger.info(
-                f"{log_prefix} | Deleting instance {log_instance_id}"
+                f"{log_prefix} Deleting instance {log_instance_id}"
             )
             _ = self.ec2_client.terminate_instances(
                 InstanceIds=[self.instance_id]
@@ -1221,7 +1297,7 @@ class Ec2(Agent):
         # Security group
         if self.security_group_id is None:
             logger.info(
-                f"{log_prefix} | No security group found! If this is a mistake, then you may need to reset your resource data"  # noqa: E501
+                f"{log_prefix} No security group found! If this is a mistake, then you may need to reset your resource data"  # noqa: E501
             )
         else:
             log_security_group_id = f"{nomad.ui.MAGENTA}{self.security_group_id}{nomad.ui.RESET}"  # noqa: E501
@@ -1231,13 +1307,13 @@ class Ec2(Agent):
                         GroupId=self.security_group_id
                     )
                     logger.info(
-                        f"{log_prefix} | Deleting security group {log_security_group_id}"  # noqa: E501
+                        f"{log_prefix} Deleting security group {log_security_group_id}"  # noqa: E501
                     )
                     break
                 except botocore.exceptions.ClientError as e:
                     if "DependencyViolation" in str(e):
                         logger.info(
-                            f"{log_prefix} | Encountered `DependencyViolation` when deleting security group {log_security_group_id}...waiting 5 seconds and trying again"  # noqa: E501
+                            f"{log_prefix} Encountered `DependencyViolation` when deleting security group {log_security_group_id}...waiting 5 seconds and trying again"  # noqa: E501
                         )
                         time.sleep(5)
                     else:

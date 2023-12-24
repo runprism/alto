@@ -29,6 +29,9 @@ GRAY = "\u001b[38;5;232m"
 # Event colors
 EVENT_COLOR = "\u001b[38;5;103m"
 
+# Image colors
+IMAGE_EVENT = "\u001b[38;5;75m"
+
 # Agent colors
 AGENT_EVENT = "\u001b[37m"
 AGENT_WHICH_BUILD = "\u001b[38;5;178m"

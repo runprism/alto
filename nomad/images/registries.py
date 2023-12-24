@@ -1,7 +1,7 @@
 """
-Registry class. Registries allow us to push our Docker images to various cloud
-repositories. People primarily use ECR and Dockerhub, but others definitely exist. We
-create this class to enable maximum flexibility.
+Registry class. Registries allow us to push our images to various cloud repositories.
+People primarily use ECR and Dockerhub, but others definitely exist. We create this
+class to enable maximum flexibility.
 """
 
 # Imports
@@ -24,10 +24,16 @@ from nomad.utils import (
     _check_optional_key_in_conf,
 )
 import nomad.ui
+from nomad.divider import Divider
+
 
 # Logger
 import logging
 logger = logging.getLogger(DEFAULT_LOGGER_NAME)
+
+
+# Dividers
+IMAGE_DIVIDER = Divider("image")
 
 
 # Metaclass
@@ -49,10 +55,10 @@ class MetaRegistry(type):
 class BaseRegistry(metaclass=MetaRegistry):
 
     def __init__(self,
-        infra_conf: Dict[str, Union[str, Dict[str, Any]]],
+        image_conf: Dict[str, Any],
         nomad_wkdir: Path,
     ):
-        self.infra_conf = infra_conf
+        self.image_conf = image_conf
         self.nomad_wkdir = nomad_wkdir
 
         # Check configuration
@@ -80,19 +86,19 @@ class BaseRegistry(metaclass=MetaRegistry):
             ConfigurationKey("registry", str, SUPPORTED_IMAGE_REGISTRIES)
         ]
         for _k in required_keys:
-            _check_key_in_conf(_k, self.infra_conf, "infra")
+            _check_key_in_conf(_k, self.image_conf, "infra")
 
         optional_keys = [
             ConfigurationKey("registry_conf", dict)
         ]
         for _k in optional_keys:
-            _check_optional_key_in_conf(_k, self.infra_conf)
+            _check_optional_key_in_conf(_k, self.image_conf)
 
         # Registry creds
-        if "registry_creds" in self.infra_conf.keys():
+        if "registry_creds" in self.image_conf.keys():
 
             # For mypy
-            if not isinstance(self.infra_conf["registry_creds"], dict):
+            if not isinstance(self.image_conf["registry_creds"], dict):
                 raise ValueError("`registry_creds` must be a dict!")
 
             required_keys = [
@@ -101,15 +107,15 @@ class BaseRegistry(metaclass=MetaRegistry):
             ]
             for _k in required_keys:
                 _check_key_in_conf(
-                    _k, self.infra_conf["registry_creds"], "registry_creds"
+                    _k, self.image_conf["registry_creds"], "registry_creds"
                 )
         else:
-            self.infra_conf["registry_creds"] = {}
+            self.image_conf["registry_creds"] = {}
 
         # Registry conf
         self.registry_conf: Dict[str, Union[str, Dict[str, str]]] = {
-            "registry": self.infra_conf["registry"],
-            "registry_creds": self.infra_conf["registry_creds"],
+            "registry": self.image_conf["registry"],
+            "registry_creds": self.image_conf["registry_creds"],
         }
 
     def push(self,
@@ -126,10 +132,10 @@ class BaseRegistry(metaclass=MetaRegistry):
 class Ecr(BaseRegistry):
 
     def __init__(self,
-        infra_conf: Dict[str, Union[str, Dict[str, Any]]],
+        image_conf: Dict[str, Any],
         nomad_wkdir: Path,
     ):
-        super().__init__(infra_conf, nomad_wkdir)
+        super().__init__(image_conf, nomad_wkdir)
 
         # Region
         my_session = boto3.session.Session()
@@ -158,12 +164,12 @@ class Ecr(BaseRegistry):
             username, password = base64.b64decode(token).decode().split(':')
 
             # Update the registry
-            self.infra_conf["registry"] = registry
+            self.image_conf["registry"] = registry
 
             # Add to the configuration
             for k, v in zip(["username", "password"], [username, password]):
                 self.registry_conf["registry_creds"][k] = v  # type: ignore
-                self.infra_conf["registry_creds"][k] = v  # type: ignore
+                self.image_conf["registry_creds"][k] = v  # type: ignore
 
             return registry, username, password
         except NoCredentialsError:
@@ -186,21 +192,21 @@ class Ecr(BaseRegistry):
             True if the repository was created successfully, False otherwise.
         """
         ecr_client = boto3.client('ecr', region_name=region)
-        prefix = f"{nomad.ui.AGENT_EVENT}{repository_name}:{image_tag}{nomad.ui.AGENT_WHICH_PUSH}[push]  {nomad.ui.RESET}"  # noqa: E501
+        log_prefix = f"{nomad.ui.AGENT_EVENT}{repository_name}:{image_tag}{nomad.ui.AGENT_WHICH_PUSH}{IMAGE_DIVIDER.__str__()}{nomad.ui.RESET}|"  # noqa: E501
 
         try:
             # Create ECR repository
             _ = ecr_client.create_repository(repositoryName=repository_name)
-            logger.info(f"{prefix} | ECR repository '{repository_name}' created successfully.")  # noqa
+            logger.info(f"{log_prefix} ECR repository '{repository_name}' created successfully.")  # noqa
             return True
         except ecr_client.exceptions.RepositoryAlreadyExistsException:
-            logger.info(f"{prefix} | ECR repository '{repository_name}' already exists.")  # noqa
+            logger.info(f"{log_prefix} ECR repository '{repository_name}' already exists.")  # noqa
             return True
         except NoCredentialsError:
-            logger.error("{prefix} | Credentials not available. Unable to create ECR repository.")  # noqa
+            logger.error(f"{log_prefix} Credentials not available. Unable to create ECR repository.")  # noqa
             return False
         except Exception as e:
-            logger.error(f"{prefix} | Error creating ECR repository: {e}")
+            logger.error(f"{log_prefix} Error creating ECR repository: {e}")
             return False
 
     def push(self,
@@ -226,7 +232,10 @@ class Ecr(BaseRegistry):
         )
         image.tag(ecr_image, tag=image_tag)
 
-        docker_client.login(username, password, registry=self.infra_conf["registry"])
+        docker_client.login(username, password, registry=self.image_conf["registry"])
+
+        # Log prefix
+        log_prefix = f"{nomad.ui.AGENT_EVENT}{image_name}:{image_tag}{nomad.ui.IMAGE_EVENT}{IMAGE_DIVIDER.__str__()}{nomad.ui.RESET}|"  # noqa
 
         # Push the Docker image to ECR
         for line in docker_client.images.push(
@@ -247,7 +256,7 @@ class Ecr(BaseRegistry):
             if " ".join(msg) != "":
                 log = " ".join(msg)
                 logger.info(
-                    f"{nomad.ui.AGENT_EVENT}{image_name}:{image_tag}{nomad.ui.AGENT_WHICH_PUSH}[push]  {nomad.ui.RESET} | {log}"  # noqa: E501
+                    f"{log_prefix} {log}"  # noqa: E501
                 )
 
 
@@ -259,7 +268,7 @@ class Dockerhub(BaseRegistry):
         """
         # Update the registry
         registry = "https://index.docker.io/v1/"
-        self.infra_conf["registry"] = registry
+        self.image_conf["registry"] = registry
 
         # Update the registry creds
         if self.registry_conf["registry_creds"] == {}:
@@ -268,7 +277,7 @@ class Dockerhub(BaseRegistry):
 
             for k, v in zip(["username", "password"], [username, password]):
                 self.registry_conf["registry_creds"][k] = v  # type: ignore
-                self.infra_conf["registry_creds"][k] = v  # type: ignore
+                self.image_conf["registry_creds"][k] = v  # type: ignore
 
         # Return
         return registry, username, password
@@ -282,9 +291,9 @@ class Dockerhub(BaseRegistry):
         Push the image to the ECR registry
         """
         # Dockerhub username and password
-        username = self.infra_conf["registry_creds"]["username"]  # type: ignore
-        password = self.infra_conf["registry_creds"]["password"]  # type: ignore
-        docker_client.login(username, password, registry=self.infra_conf["registry"])
+        username = self.image_conf["registry_creds"]["username"]  # type: ignore
+        password = self.image_conf["registry_creds"]["password"]  # type: ignore
+        docker_client.login(username, password, registry=self.image_conf["registry"])
 
         # For the username, remove the `@xxx.com` if it exists
         username = re.sub(
@@ -299,6 +308,9 @@ class Dockerhub(BaseRegistry):
             name=f"{image_name}:{image_tag}"
         )
         image.tag(dockerhub_image, tag=image_tag)
+
+        # Log prefix
+        log_prefix = f"{nomad.ui.AGENT_EVENT}{image_name}:{image_tag}{nomad.ui.AGENT_WHICH_PUSH}{IMAGE_DIVIDER.__str__()}{nomad.ui.RESET}|"  # noqa
 
         # Push the Docker image to ECR
         for line in docker_client.images.push(
@@ -318,5 +330,5 @@ class Dockerhub(BaseRegistry):
             if " ".join(msg) != "":
                 log = " ".join(msg)
                 logger.info(
-                    f"{nomad.ui.AGENT_EVENT}{image_name}:{image_tag}{nomad.ui.AGENT_WHICH_PUSH}[push]  {nomad.ui.RESET} | {log}"  # noqa: E501
+                    f"{log_prefix} {log}"  # noqa: E501
                 )
