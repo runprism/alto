@@ -329,7 +329,7 @@ class Docker(BaseImage, ConfigMixin):
 
         # If a Dockerfile path is given, then just use that
         else:
-            dockerfile_path = context
+            dockerfile_path = Path(context)
 
         # Create image
         resp = self.build_client.build(
