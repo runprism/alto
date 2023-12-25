@@ -1028,7 +1028,7 @@ class Ec2(Agent):
             self.image.build(
                 self.agent_conf,
                 self.entrypoint,
-                jinja_template_overrides={"other_build_cmds": ""},
+                jinja_template_overrides={},
                 build_kwargs={"platform": "linux/amd64"},
             )
 
