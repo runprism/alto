@@ -1005,7 +1005,7 @@ class Ec2(Agent):
 
         # If we're running a Docker image on our EC2 instance, then update the arguments
         if isinstance(self.image, DockerImage):
-            self.run_command.set_accepted_apply_optargs(['-p', '-u', '-n'])
+            self.run_command.set_accepted_apply_optargs(['-p', '-u', '-n', '-f', '-d'])
 
             # Additional optargs. Note that this function is called AFTER we push our
             # image to our registry, so our registry configuration should have all the
