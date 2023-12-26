@@ -316,7 +316,7 @@ class Docker(BaseImage, ConfigMixin):
                     dst=docker_context_path / "requirements.txt",
                 )
             else:
-                with open(docker_context_path / "requirements.txt") as f:
+                with open(docker_context_path / "requirements.txt", 'w') as f:
                     f.write("")
             requirements_relative_path = Path("requirements.txt")
             requirements_relative_str = str(requirements_relative_path)
