@@ -236,7 +236,6 @@ class Docker(BaseImage, ConfigMixin):
                 continue
 
             # Copy
-            print(full, flat)
             shutil.copytree(
                 src=full,
                 dst=docker_context_path / flat,
