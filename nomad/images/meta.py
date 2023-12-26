@@ -20,7 +20,7 @@ from nomad.utils import (
 )
 import nomad.ui
 from nomad.images.registries import MetaRegistry, BaseRegistry
-from nomad.entrypoints import BaseEntrypoint
+from nomad.entrypoints import BaseEntrypoint, Jupyter
 
 
 # Logger
@@ -72,6 +72,7 @@ class BaseImage(metaclass=MetaImage):
         optional_keys = [
             ConfigurationKey("registry", str, SUPPORTED_IMAGE_REGISTRIES),
             ConfigurationKey("registry_creds", dict),
+            ConfigurationKey("image_build_cmds", list),
         ]
         for _k in optional_keys:
             _check_optional_key_in_conf(_k, self.image_conf)
@@ -91,6 +92,36 @@ class BaseImage(metaclass=MetaImage):
             image_conf=self.image_conf,
             nomad_wkdir=self.nomad_wkdir,
         )
+
+    def parse_image_build_cmds(self,
+        image_conf: Dict[str, Any],
+        entrypoint: BaseEntrypoint
+    ):
+        """
+        Get the post-build commands for the cloud environment
+
+        args:
+            image_conf: image configuration as dictionary
+        returns:
+            image build cmds as a list. If no post-build commands are specified, then
+            return an empty list.
+        """
+        image_build_cmds = image_conf.get("image_build_cmds", [])
+
+        # For `jupyter` entrypoints, we need to install the ipython kernel.
+        if isinstance(entrypoint, Jupyter):
+            # Technically, the user's requirements should install ipython and the
+            # ipykernel, but we'll do it again here anyways.
+            for cmd in [
+                "apt-get update && apt-get install -y gcc python3-dev",
+                "pip install ipython ipykernel papermill",
+                f'ipython kernel install --name "{entrypoint.kernel}" --user'
+            ]:
+                if cmd not in image_build_cmds:
+                    image_build_cmds.append(cmd)
+
+        # Update the class attributes
+        return image_build_cmds
 
     def build(self,
         agent_conf: Dict[str, Any],

@@ -1058,7 +1058,7 @@ class Ec2(Agent):
 
         # Post-build commands
         processed_post_build_commands = []
-        raw_post_build_commands = self.parse_post_build_cmds(self.agent_conf)
+        raw_post_build_commands = self.infra.infra_conf["post_build_cmds"]
         for pbc in raw_post_build_commands:
             processed_post_build_commands.append(f'{pbc}')
 

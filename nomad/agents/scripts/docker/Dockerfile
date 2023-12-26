@@ -1,9 +1,9 @@
 FROM {{ base_image }}
 LABEL stage=intermediate
 
-{{ other_build_cmds }}
+{{ image_build_cmds }}
 
-COPY {{ requirements_txt }} ./{{ requirements_txt }}
+COPY {{ requirements_txt }} ./requirements.txt
 RUN pip install --upgrade pip && pip install -r ./{{ requirements_txt }}
 
 {{ copy_commands }}

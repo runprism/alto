@@ -1,4 +1,0 @@
-infra:
-  type: docker
-  base_image: python:3.10.8-slim-bullseye
-  server_url: unix://var/run/docker.sock  # optional!

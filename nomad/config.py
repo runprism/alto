@@ -65,22 +65,6 @@ class ConfigMixin:
         except KeyError:
             return None
 
-    def parse_post_build_cmds(self, agent_conf: Dict[str, Any]):
-        """
-        Get the post-build commands for the cloud environment
-
-        args:
-            agent_conf: agent configuration as dictionary
-        returns:
-            post-build cmds as a list. If no post-build commands are specified, then
-            return an empty list.
-        """
-        # Not all Nomad projects will have a `requirements` file.
-        if "post_build_cmds" not in agent_conf.keys():
-            return []
-        post_build_cmds = agent_conf["post_build_cmds"]
-        return post_build_cmds
-
     def parse_download_files(self, agent_conf: Dict[str, Any]):
         """
         Get the files to download from the cloud environment

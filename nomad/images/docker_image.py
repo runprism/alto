@@ -236,11 +236,14 @@ class Docker(BaseImage, ConfigMixin):
                 continue
 
             # Copy
+            print(full, flat)
             shutil.copytree(
                 src=full,
                 dst=docker_context_path / flat,
                 dirs_exist_ok=True,
-                ignore=shutil.ignore_patterns(*[docker_context_path.name])
+                ignore=shutil.ignore_patterns(
+                    *[docker_context_path.name, "requirements"]
+                )
             )
 
             # Add copy command
@@ -283,17 +286,20 @@ class Docker(BaseImage, ConfigMixin):
                 agent_conf,
                 absolute=False
             )
-            requirements_relative_str = str(requirements_relative_path)
+
+            # Path for Dockerfile
+            docker_context_path = self.nomad_wkdir / '.docker_context'
 
             # Post-build commands
-            processed_other_build_commands = []
-            raw_other_build_commands = self.parse_post_build_cmds(agent_conf)
-            for pbc in raw_other_build_commands:
-                processed_other_build_commands.append(f'RUN {pbc}')
-            other_build_cmds_dockerfile = "\n".join(processed_other_build_commands)
+            processed_image_build_cmds = []
+            raw_image_build_commands = self.parse_image_build_cmds(
+                self.image_conf, entrypoint
+            )
+            for pbc in raw_image_build_commands:
+                processed_image_build_cmds.append(f'RUN {pbc}')
+            image_build_commands_dockerfile = "\n".join(processed_image_build_cmds)
 
             # Copy commands
-            docker_context_path = self.nomad_wkdir / '.docker_context'
             additional_paths = self.parse_additional_paths(agent_conf)
             copy_commands = self.prepare_copy_commands(
                 docker_context_path, self.nomad_wkdir, additional_paths
@@ -302,11 +308,19 @@ class Docker(BaseImage, ConfigMixin):
                 str(cmd) for _, cmd in copy_commands.items()
             ])
 
-            # Copy requirements into the docker context
-            shutil.copy(
-                src=self.nomad_wkdir / requirements_relative_path,
-                dst=docker_context_path / "requirements.txt",
-            )
+            # Copy requirements into the docker context. If the requirements are not
+            # specified, create a blank requirements.txt file in the Docker context
+
+            if str(requirements_relative_path) != "":
+                shutil.copyfile(
+                    src=(self.nomad_wkdir / requirements_relative_path).resolve(),
+                    dst=docker_context_path / "requirements.txt",
+                )
+            else:
+                with open(docker_context_path / "requirements.txt") as f:
+                    f.write("")
+            requirements_relative_path = Path("requirements.txt")
+            requirements_relative_str = str(requirements_relative_path)
 
             # Environment dictionary
             env_dict = self.parse_environment_variables(agent_conf)
@@ -317,7 +331,7 @@ class Docker(BaseImage, ConfigMixin):
             jinja_template = env.get_template("Dockerfile")
             rendered_template = jinja_template.render(
                 base_image=jinja_template_overrides.get("base_image", self.base),
-                other_build_cmds=jinja_template_overrides.get("other_build_cmds", other_build_cmds_dockerfile),  # noqa
+                image_build_cmds=jinja_template_overrides.get("image_build_cmds", image_build_commands_dockerfile),  # noqa
                 requirements_txt=jinja_template_overrides.get("requirements_txt", requirements_relative_str),  # noqa
                 nomad_wkdir_name=jinja_template_overrides.get("nomad_wkdir_name", self.nomad_wkdir.name),  # noqa
                 copy_commands=jinja_template_overrides.get("copy_commands", copy_commands_dockerfile),  # noqa
@@ -329,7 +343,6 @@ class Docker(BaseImage, ConfigMixin):
             dockerfile_path = self.nomad_wkdir / ".docker_context" / "Dockerfile"
             with open(dockerfile_path, 'w') as f:
                 f.write(rendered_template)
-
         # If a Dockerfile path is given, then just use that
         else:
             dockerfile_path = Path(context) / "Dockerfile"

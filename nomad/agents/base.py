@@ -10,9 +10,9 @@ contains the base class for the agent.
 
 # Internal imports
 from nomad.agents.meta import MetaAgent
-from nomad.entrypoints import BaseEntrypoint
+from nomad.entrypoints import BaseEntrypoint, Jupyter
 from nomad.infras import BaseInfra
-from nomad.images import BaseImage
+from nomad.images import BaseImage, Docker as DockerImage
 from nomad.config import ConfigMixin
 
 # Standard library imports
@@ -59,6 +59,44 @@ class Agent(ConfigMixin, metaclass=MetaAgent):
 
         # Check the configuration
         self.check_conf(self.agent_conf)
+
+        # Define the post-buld commands for the infrastructure
+        self.define_post_build_cmds()
+
+    def define_post_build_cmds(self):
+        """
+        Define actions to be performed before the code is executed. These could be
+        anything, but they must be specified as a list of bash commands.
+
+        For certain entrypoints, we use this function to augment the `post_build_cmds`
+        that the user specifies, if any.
+        """
+        if "post_build_cmds" not in self.infra.infra_conf.keys():
+            self.infra.infra_conf["post_build_cmds"] = []
+
+        # We run this function *after* checking the infra and entrypoint
+        # configuration.
+        post_build_cmds = self.infra.infra_conf["post_build_cmds"]
+
+        # For `jupyter` entrypoints, we need to install the ipython kernel.
+        if isinstance(self.entrypoint, Jupyter):
+
+            # If we're using an image, then don't do anything...the Jupyter stuff will
+            # be installed in the Docker image itself.
+            if isinstance(self.image, DockerImage):
+                True  # do nothing
+            else:
+                # Technically, the user's requirements should install ipython and the
+                # ipykernel, but we'll do it again here anyways.
+                for cmd in [
+                    "pip install ipython ipykernel papermill",
+                    f'ipython kernel install --name "{self.entrypoint.kernel}" --user'
+                ]:
+                    if cmd not in post_build_cmds:
+                        post_build_cmds.append(cmd)
+
+        # Update the class attributes
+        self.infra.infra_conf["post_build_cmds"] = post_build_cmds
 
     def check_conf(self, conf: Dict[str, Any]):
         return True

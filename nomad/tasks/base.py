@@ -85,7 +85,6 @@ class BaseTask:
         self.confirm_entrypoint_conf_structure(self.conf)
         self.confirm_additional_paths_conf_structure(self.conf)
         self.confirm_image_conf_structure(self.conf)
-        self.conf = self.define_post_build_cmds(self.conf)
         self.conf = self.define_download_files(self.conf)
 
     def parse_conf_fpath(self,
@@ -259,49 +258,6 @@ class BaseTask:
         optional_key = ConfigurationKey("additional_paths", list)
         _check_optional_key_in_conf(optional_key, conf)
         return True
-
-    def define_post_build_cmds(self,
-        conf: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """
-        Define actions to be performed before the code is executed. These could be
-        anything, but they must be specified as a list of bash commands.
-
-        For certain entrypoints, we use this function to augment the `post_build_cmds`
-        that the user specifies, if any.
-
-        args:
-            conf: agent configuration
-        returns:
-            configuration with augmented `post_build_cmds`
-        """
-        # We run this function *after* checking the agent configuration and entrypoint
-        # configuration.
-        post_build_cmds = []
-        if "post_build_cmds" in conf.keys():
-            post_build_cmds = conf["post_build_cmds"]
-
-        # At this point, we should know what our entrypoint type is
-        if not hasattr(self, "entrypoint"):
-            raise ValueError("entrypoint attribute not defined!")
-        ep: BaseEntrypoint = self.entrypoint
-
-        # For `jupyter` entrypoints, we need to install the ipython kernel. Since we're
-        # running these actions after the requirements are installed, then the
-        if isinstance(ep, Jupyter):
-            # Technically, the user's requirements should install ipython and the
-            # ipykernel, but we'll do it again here anyways.
-            for cmd in [
-                "pip install ipython ipykernel papermill",
-                f'ipython kernel install --name "{ep.kernel}" --user'
-            ]:
-                if cmd not in post_build_cmds:
-                    post_build_cmds.append(cmd)
-
-        # Define class attribute
-        if post_build_cmds != []:
-            conf["post_build_cmds"] = post_build_cmds
-        return conf
 
     def define_download_files(self,
         conf: Dict[str, Any]
