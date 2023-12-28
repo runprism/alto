@@ -4,8 +4,7 @@
 
 <div align="center">
 
-[![CI Linux](https://github.com/runprism/nomad/actions/workflows/ci-linux.yml/badge.svg?branch=python-version)](https://github.com/runprism/nomad/actions/workflows/ci-linux.yml)
-[![CI MacOS](https://github.com/runprism/nomad/actions/workflows/ci-macos.yml/badge.svg?branch=python-version)](https://github.com/runprism/nomad/actions/workflows/ci-macos.yml)
+[![Tests](https://github.com/runprism/nomad/actions/workflows/tests.yml/badge.svg?branch=python-version)](https://github.com/runprism/nomad/actions/workflows/tests.yml)
 [![Checked with mypy](http://www.mypy-lang.org/static/mypy_badge.svg)](http://mypy-lang.org/)
 
 

@@ -15,9 +15,6 @@ jobs:
         python-version: ['python3.8', 'python3.9', 'python3.10']
     steps:
     - uses: actions/checkout@v2
-
-    - name: 🔎 Check IP
-      run: curl https://api.ipify.org
     
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v2
@@ -41,3 +38,6 @@ jobs:
           AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION=${{ secrets.AWS_DEFAULT_REGION }}
         tags: nomad-dev-${{ matrix.python-version }}:latest
+    
+    - name: Test
+      uses: docker run -v /var/run/docker.sock:/var/run/docker.sock nomad-dev-${{ matrix.python-version }}:latest
