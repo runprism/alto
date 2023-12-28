@@ -5,7 +5,6 @@ Example function for test case.
 # Imports
 import os
 import boto3
-import sys
 
 
 # Functions
@@ -30,15 +29,5 @@ def write_txt_file(
         platform=platform,
         python_version=python_version,
         output_name=output_name,
-    ).encode()
-    s3_object.put(Body=txt_data)
-
-    # Generate file that contains the EC2 instance's Python version
-    output_key = f"{platform}_{python_version}_ec2sys".replace(".", "")
-    s3_object = s3.Object('nomad-dev-tests', f'tests/{output_key}.txt')
-    txt_data = "This was created using Python {major}.{minor}.{micro}".format(  # noqa
-        major=sys.version_info.major,
-        minor=sys.version_info.minor,
-        micro=sys.version_info.micro
     ).encode()
     s3_object.put(Body=txt_data)

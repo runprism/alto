@@ -103,21 +103,31 @@ class Ec2(Agent):
         nomad_project_name = self.nomad_wkdir.name.replace("_", "-")
         self.instance_name = f"{nomad_project_name}-{self.agent_name}"
 
-        # Get previous instance data.
+        # Create an empty `ec2.json` file if it doesn't exist
         if not Path(INTERNAL_FOLDER / 'ec2.json').is_file():
+            with open(Path(INTERNAL_FOLDER / 'ec2.json'), 'w') as f:
+                json.dumps("{}", f)
+
+        # Load the current data
+        with open(Path(INTERNAL_FOLDER / 'ec2.json'), 'r') as f:
+            data = json.loads(f.read())
+        f.close()
+
+        # If the current instance doesn't exist in the data, then all the attributes
+        # will be `None`
+        if self.instance_name not in data.keys():
             self.instance_id: Optional[str] = None
             self.public_dns_name: Optional[str] = None
             self.security_group_id: Optional[str] = None
             self.key_name: Optional[str] = None
             self.pem_key_path: Optional[Path] = None
             self.state: Optional[str] = None
-        else:
-            with open(Path(INTERNAL_FOLDER / 'ec2.json'), 'r') as f:
-                data = json.loads(f.read())
-            f.close()
 
-            # If the data exists, then it must be a JSON with two keys: "resources" and
-            # "files".
+        else:
+            data = data[self.instance_name]
+
+            # If the data exists, then it must be a JSON with two keys: "resources"
+            # and "files".
             for attr in [
                 "instance_id",
                 "public_dns_name",
@@ -237,21 +247,26 @@ class Ec2(Agent):
         """
         json_path = Path(INTERNAL_FOLDER) / 'ec2.json'
         if not json_path.is_file():
-            self.write_json(data)
+            self.write_json({self.instance_name: data})
             return data
         else:
             with open(json_path, 'r') as f:
                 json_data = json.loads(f.read())
             f.close()
 
+            # If the instance name isn't in the JSON, then add it in
+            if self.instance_name not in json_data.keys():
+                json_data.update({self.instance_name: data})
+
             # Update the data
-            for key in ["resources", "files"]:
-                if key in list(data.keys()):
-                    json_data[key].update(data[key])
+            else:
+                for key in ["resources", "files"]:
+                    if key in list(data.keys()):
+                        json_data[self.instance_name][key].update(data[key])
 
             # Write the json
             self.write_json(json_data)
-            return json_data
+            return json_data[self.instance_name]
 
     def delete_resources_in_json(self) -> Dict[str, str]:
         """
@@ -265,6 +280,7 @@ class Ec2(Agent):
             with open(json_path, 'r') as f:
                 json_data = json.loads(f.read())
             f.close()
+            json_data = json_data[self.instance_name]
 
             # Resources and files
             resources = json_data["resources"]

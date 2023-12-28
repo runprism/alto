@@ -16,9 +16,6 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    - name: 🔎 Check IP
-      run: curl https://api.ipify.org
-
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
       with:
@@ -29,6 +26,9 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r dev_requirements.txt
 
+    # We only run unit tests on a Mac OSX, because it's kind of a pain to run the
+    # integration tests on the Github MacOSX runner. For Ubuntu/Linux, we use a Docker
+    # image to run our integration tests, and that works a lot better.
     - name: Unit tests
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}

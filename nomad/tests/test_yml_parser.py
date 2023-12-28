@@ -159,7 +159,7 @@ def test_yml_parser():
     }
 
     expected_conf_7 = {
-        f"my_cloud_agent-{PLATFORM}-{PYTHON_VERSION}": {
+        f"my_cloud_agent-{PYTHON_VERSION}": {
             "infra": {
                 "type": "ec2",
                 "instance_type": "t2.micro",

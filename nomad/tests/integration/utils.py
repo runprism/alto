@@ -118,3 +118,41 @@ def delete_s3_file(s3_uri: str) -> None:
         Key=key
     )
     return
+
+
+def ecr_repository_exists(repository_name):
+    """
+    Check if `repository_name` exists in ECR
+    """
+    try:
+        ecr_client = boto3.client('ecr')
+        ecr_client.describe_repositories(repositoryNames=[repository_name])
+        return True
+
+    # ECR repository does not exist
+    except ecr_client.exceptions.RepositoryNotFoundException:
+        return False
+
+    # Some other error
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return False
+
+
+def delete_ecr_repository(repository_name):
+    """
+    Delete `repository_name` if it exists in ECR
+    """
+    try:
+        ecr_client = boto3.client('ecr')
+        ecr_client.delete_repository(repositoryName=repository_name, force=True)
+        return True
+
+    # Repository doesn't exist
+    except ecr_client.exceptions.RepositoryNotFoundException:
+        return False
+
+    # Some other error
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return False
