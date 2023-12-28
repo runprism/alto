@@ -50,5 +50,5 @@ jobs:
     
     - name: Integration tests
       run: |
-        echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+        docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_PASSWORD }}
         docker run -v /var/run/docker.sock:/var/run/docker.sock nomad-dev-${{ matrix.python-version }}:latest
