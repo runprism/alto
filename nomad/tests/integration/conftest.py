@@ -18,6 +18,7 @@ from nomad.tests.integration.utils import (
 from nomad.constants import (
     PYTHON_VERSION,
 )
+import shutil
 
 
 # Constants
@@ -96,3 +97,5 @@ def pytest_sessionfinish():
         # Also, delete the ECR repositories
         delete_ecr_repository(resource_name)
         assert not ecr_repository_exists(resource_name)
+        if Path(_dir / '.docker_context').is_dir():
+            shutil.rmtree(_dir / '.docker_context', ignore_errors=True)
