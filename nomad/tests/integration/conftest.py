@@ -5,8 +5,6 @@ Pytest configuration
 # Imports
 import os
 from pathlib import Path
-from click.testing import CliRunner
-from nomad.main import cli
 from nomad.tests.integration.utils import (
     key_pair_exists,
     security_group_exists,
@@ -81,12 +79,9 @@ def pytest_sessionfinish():
     ]:
 
         # Delete the resources
-        os.chdir(TEST_FUNCTION)
-        runner = CliRunner()
-        result = runner.invoke(
-            cli, ["delete", "-f", "nomad.yml"]
-        )
-        assert result.exit_code == 0
+        os.chdir(_dir)
+        proc = cli_runner(["delete", "-f", "nomad_docker.yml"])
+        assert proc.returncode == 0
 
         # Resources should no longer exist
         resource_name = f"{_dir.name}-my_cloud_agent-{PYTHON_VERSION}"

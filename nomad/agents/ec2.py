@@ -1331,9 +1331,15 @@ class Ec2(Agent):
                     else:
                         raise e
 
-        # Remove the data
+        # Remove the data from the ec2.json file
         if Path(INTERNAL_FOLDER / 'ec2.json').is_file():
-            os.unlink(Path(INTERNAL_FOLDER / 'ec2.json'))
+            with open(Path(INTERNAL_FOLDER / 'ec2.json'), 'r') as f:
+                json_data = json.loads(f.read())
+            if self.instance_name in json_data.keys():
+                del json_data[self.instance_name]
+
+            # Write the data out again
+            self.write_json(json_data)
 
         # Return
         return 0
