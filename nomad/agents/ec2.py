@@ -106,7 +106,7 @@ class Ec2(Agent):
         # Create an empty `ec2.json` file if it doesn't exist
         if not Path(INTERNAL_FOLDER / 'ec2.json').is_file():
             with open(Path(INTERNAL_FOLDER / 'ec2.json'), 'w') as f:
-                json.dumps("{}", f)
+                f.write("{}")
 
         # Load the current data
         with open(Path(INTERNAL_FOLDER / 'ec2.json'), 'r') as f:
