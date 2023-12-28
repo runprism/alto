@@ -51,7 +51,6 @@ jobs:
     - name: Integration tests
       uses: docker/login-action@v2
       run: |
-        docker login
         docker run -v /var/run/docker.sock:/var/run/docker.sock nomad-dev-${{ matrix.python-version }}:latest
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
