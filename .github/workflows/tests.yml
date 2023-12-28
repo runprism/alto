@@ -36,7 +36,7 @@ jobs:
     - name: Build and push
       uses: docker/build-push-action@v4
       with:
-        push: false
+        push: true
         build-args: |
           PYTHON_VERSION=${{ matrix.python-version }}
           AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
