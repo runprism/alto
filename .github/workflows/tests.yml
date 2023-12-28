@@ -40,4 +40,5 @@ jobs:
         tags: nomad-dev-${{ matrix.python-version }}:latest
     
     - name: Test
-      uses: docker run -v /var/run/docker.sock:/var/run/docker.sock nomad-dev-${{ matrix.python-version }}:latest
+      run: |
+        docker run -v /var/run/docker.sock:/var/run/docker.sock nomad-dev-${{ matrix.python-version }}:latest
