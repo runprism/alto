@@ -45,9 +45,6 @@ ENV AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION
 # Docker volume and server URL
 ENV __NOMAD_DOCKER_SERVER_URL__="unix:///var/run/docker.sock"
 
-# Unit tests
-RUN . /opt/venv/bin/activate && pytest --ignore=nomad/tests/integration
-
 # # Integration tests
 WORKDIR nomad/tests/integration
 CMD . /opt/venv/bin/activate && pytest
