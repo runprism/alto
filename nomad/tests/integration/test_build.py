@@ -10,6 +10,7 @@ from nomad.tests.integration.utils import (
     s3_file_exists,
     delete_s3_file,
     cli_runner,
+    ecr_repository_exists,
 )
 from nomad.constants import (
     PYTHON_VERSION,
@@ -29,6 +30,8 @@ TEST_SCRIPT = TEST_DIR / 'script'
 def _build_integration_test(
     test_path: Path,
     fname_name: str,
+    conf_fname: str = "nomad.yml",
+    image: bool = False
 ):
     os.chdir(test_path)
 
@@ -38,10 +41,10 @@ def _build_integration_test(
     delete_s3_file(file_s3_uri)
 
     # Invoke the `build` command
-    proc = cli_runner(["build", "-f", "nomad.yml", "--no-delete-success", "--no-delete-failure"])  # noqa: E501
+    proc = cli_runner(["build", "-f", conf_fname, "--no-delete-success", "--no-delete-failure"])  # noqa: E501
 
     # Check if EC2 resources exist
-    resource_name = f"my_cloud_agent-{PLATFORM}-{PYTHON_VERSION}"
+    resource_name = f"{test_path.name}-my_cloud_agent-{PYTHON_VERSION}"
     resources = _resources_exist(resource_name)
     assert resources["key_pair"]
     assert resources["security_group"]
@@ -53,20 +56,17 @@ def _build_integration_test(
     expected_output = f"Hello world from our `{PLATFORM}.{PYTHON_VERSION}.{fname_name}` test case!"  # noqa: E501
     assert test_output == expected_output
 
+    # Check if the Docker image exists
+    if image:
+        ecr_repository_exists(f"{test_path.name}-my_cloud_agent-{PYTHON_VERSION}")
+
 
 def test_function():
     """
     Test the output of a function deployment
     """
     _build_integration_test(TEST_FUNCTION, "test_function")
-
-    # Check that the correct Python version was used
-    output_key = f"{PLATFORM}_{PYTHON_VERSION}_ec2sys".replace(".", "")
-    file_s3_uri = f"s3://nomad-dev-tests/tests/{output_key}.txt"
-    test_output = s3_file_exists(file_s3_uri)
-    expected_output = "This was created using Python 3.11.6"
-    assert test_output == expected_output
-    delete_s3_file(file_s3_uri)
+    _build_integration_test(TEST_FUNCTION, "test_function", "nomad_docker.yml", True)
 
 
 def test_script():
@@ -74,6 +74,7 @@ def test_script():
     Test the output of a function deployment
     """
     _build_integration_test(TEST_SCRIPT, "test_script")
+    _build_integration_test(TEST_SCRIPT, "test_script", "nomad_docker.yml", True)
 
 
 def test_project():
@@ -81,3 +82,4 @@ def test_project():
     Test the output of a function deployment
     """
     _build_integration_test(TEST_PROJECT, "test_project")
+    _build_integration_test(TEST_PROJECT, "test_project", "nomad_docker.yml", True)

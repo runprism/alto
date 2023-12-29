@@ -11,6 +11,7 @@ import requests
 
 # Internal imports
 from nomad.constants import (
+    DEFAULT_LOGGER_NAME,
     SUPPORTED_AGENTS,
     EC2_SUPPORTED_INSTANCE_TYPES,
 )
@@ -19,6 +20,10 @@ from nomad.utils import (
     _check_key_in_conf,
     _check_optional_key_in_conf,
 )
+
+# Logger
+import logging
+DEFAULT_LOGGER = logging.getLogger(DEFAULT_LOGGER_NAME)
 
 
 # Metaclass
@@ -58,6 +63,11 @@ class BaseInfra(metaclass=MetaInfra):
         type_key = ConfigurationKey("type", str, SUPPORTED_AGENTS)
         _check_key_in_conf(type_key, self.infra_conf, "infra")
 
+        # Post build commands. We process these in our Agent class, since some of the
+        # post-build commands depend on the specific entrypoint the user uses.
+        post_build_cmds_key = ConfigurationKey("post_build_cmds", list)
+        _check_optional_key_in_conf(post_build_cmds_key, self.infra_conf)
+
 
 class Ec2(BaseInfra):
     """
@@ -73,7 +83,7 @@ class Ec2(BaseInfra):
         """
         Confirm that the infra configuration is acceptable
         """
-        super().check_conf()
+        BaseInfra.check_conf(self)
 
         # Check for the `instance_type` and `ami_image` keys
         keys = [

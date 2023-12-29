@@ -11,6 +11,7 @@ from typing import Any, Dict
 # Internal imports
 from nomad.constants import (
     SUPPORTED_AGENTS,
+    SUPPORTED_IMAGES,
 )
 from nomad.utils import (
     ConfigurationKey,
@@ -26,12 +27,17 @@ from nomad.entrypoints import (  # noqa
     BaseEntrypoint,
     Project,
     Function,
-    Jupyter
+    Jupyter,
 )
 from nomad.infras import (  # noqa
     MetaInfra,
     BaseInfra,
     Ec2,
+)
+from nomad.images import (  # noqa
+    MetaImage,
+    BaseImage,
+    Docker
 )
 
 
@@ -78,7 +84,7 @@ class BaseTask:
         self.confirm_matrix_conf_structure(self.conf)
         self.confirm_entrypoint_conf_structure(self.conf)
         self.confirm_additional_paths_conf_structure(self.conf)
-        self.conf = self.define_post_build_cmds(self.conf)
+        self.confirm_image_conf_structure(self.conf)
         self.conf = self.define_download_files(self.conf)
 
     def parse_conf_fpath(self,
@@ -119,13 +125,15 @@ class BaseTask:
         # Create the infra
         type_key = ConfigurationKey("type", str, SUPPORTED_AGENTS)
         _check_key_in_conf(type_key, conf["infra"], "infra")
-        self.infra = MetaInfra.get_infra(conf["infra"]["type"])(
+        conf_type = conf["infra"]["type"].replace("-", "")
+        self.infra = MetaInfra.get_infra(conf_type)(
             infra_conf=conf["infra"],
             nomad_wkdir=self.nomad_wkdir
         )
 
         # Other optional keys
         optional_keys = [
+            ConfigurationKey("image", dict),
             ConfigurationKey("env", dict),
             ConfigurationKey("requirements", str),
             ConfigurationKey("post_build_cmds", list),
@@ -195,6 +203,43 @@ class BaseTask:
             nomad_wkdir=self.nomad_wkdir,
         )
 
+    def confirm_image_conf_structure(self,
+        conf: Dict[str, Any]
+    ):
+        """
+        At this point, the `image` key may or may not exist. If it does exist, then we
+        want to create the associated `Image` class instance.
+
+        args:
+            conf: agent configuration
+        returns:
+            True if the `image` section is properly structured
+        raises:
+            ValueError() if the `image` section is not properly structured
+        """
+        if "image" in conf.keys():
+            image = conf["image"]
+            if image == {}:
+                return None
+
+            # Check that `type` exists
+            if "type" not in image.keys():
+                raise ValueError(
+                    "`image` configuration missing a `type`!"
+                )
+            if image["type"] not in SUPPORTED_IMAGES:
+                raise ValueError(
+                    f"unrecognized image type `{image['type']}`"
+                )
+            self.image = MetaImage.get_image(image["type"])(
+                nomad_wkdir=self.nomad_wkdir,
+                image_name=self.name,
+                image_conf=image,
+            )
+
+        else:
+            self.image = None
+
     def confirm_additional_paths_conf_structure(self,
         conf: Dict[str, Any]
     ):
@@ -213,49 +258,6 @@ class BaseTask:
         optional_key = ConfigurationKey("additional_paths", list)
         _check_optional_key_in_conf(optional_key, conf)
         return True
-
-    def define_post_build_cmds(self,
-        conf: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """
-        Define actions to be performed before the code is executed. These could be
-        anything, but they must be specified as a list of bash commands.
-
-        For certain entrypoints, we use this function to augment the `post_build_cmds`
-        that the user specifies, if any.
-
-        args:
-            conf: agent configuration
-        returns:
-            configuration with augmented `post_build_cmds`
-        """
-        # We run this function *after* checking the agent configuration and entrypoint
-        # configuration.
-        post_build_cmds = []
-        if "post_build_cmds" in conf.keys():
-            post_build_cmds = conf["post_build_cmds"]
-
-        # At this point, we should know what our entrypoint type is
-        if not hasattr(self, "entrypoint"):
-            raise ValueError("entrypoint attribute not defined!")
-        ep: BaseEntrypoint = self.entrypoint
-
-        # For `jupyter` entrypoints, we need to install the ipython kernel. Since we're
-        # running these actions after the requirements are installed, then the
-        if isinstance(ep, Jupyter):
-            # Technically, the user's requirements should install ipython and the
-            # ipykernel, but we'll do it again here anyways.
-            for cmd in [
-                "pip install ipython ipykernel papermill",
-                f'ipython kernel install --name "{ep.kernel}" --user'
-            ]:
-                if cmd not in post_build_cmds:
-                    post_build_cmds.append(cmd)
-
-        # Define class attribute
-        if post_build_cmds != []:
-            conf["post_build_cmds"] = post_build_cmds
-        return conf
 
     def define_download_files(self,
         conf: Dict[str, Any]

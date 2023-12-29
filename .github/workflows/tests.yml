@@ -1,4 +1,4 @@
-name: CI Linux
+name: Tests
 
 on:
   pull_request:
@@ -16,8 +16,10 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    - name: 🔎 Check IP
-      run: curl https://api.ipify.org
+    - name: Install requirements
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r dev_requirements.txt
     
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v2
@@ -34,10 +36,19 @@ jobs:
     - name: Build and push
       uses: docker/build-push-action@v4
       with:
-        push: false
+        push: true
         build-args: |
           PYTHON_VERSION=${{ matrix.python-version }}
           AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION=${{ secrets.AWS_DEFAULT_REGION }}
-        tags: nomad-dev-${{ matrix.python-version }}:latest
+        tags: mtrivedi50/nomad-dev-${{ matrix.python-version }}:latest
+    
+    - name: Unit tests
+      run: |
+        pytest --ignore=nomad/tests/integration
+    
+    - name: Integration tests
+      run: |
+        docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_PASSWORD }}
+        docker run -v /var/run/docker.sock:/var/run/docker.sock mtrivedi50/nomad-dev-${{ matrix.python-version }}:latest

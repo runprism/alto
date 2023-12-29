@@ -1,11 +1,10 @@
 <p align="center">
-  <img src="https://github.com/runprism/nomad/raw/main/.github/nomad.png" alt="Nomad logo" height="200"/>
+  <img src="https://github.com/runprism/nomad/raw/issue-6/.github/nomad.png" alt="Nomad logo" style="width: 65%"/>
 </p>
 
 <div align="center">
 
-[![CI Linux](https://github.com/runprism/nomad/actions/workflows/ci-linux.yml/badge.svg?branch=python-version)](https://github.com/runprism/nomad/actions/workflows/ci-linux.yml)
-[![CI MacOS](https://github.com/runprism/nomad/actions/workflows/ci-macos.yml/badge.svg?branch=python-version)](https://github.com/runprism/nomad/actions/workflows/ci-macos.yml)
+[![Tests](https://github.com/runprism/nomad/actions/workflows/tests.yml/badge.svg)](https://github.com/runprism/nomad/actions/workflows/tests.yml)
 [![Checked with mypy](http://www.mypy-lang.org/static/mypy_badge.svg)](http://mypy-lang.org/)
 
 

@@ -23,6 +23,10 @@ class ApplyTask(BaseTask):
         """
         self.check()
         agent_type = self.infra.infra_conf["type"]
+
+        # Replace dashes
+        agent_type = agent_type.replace("-", "")
+
         agent: Agent = MetaAgent.get_agent(agent_type)(
             args=self.args,
             nomad_wkdir=self.nomad_wkdir,
@@ -30,6 +34,7 @@ class ApplyTask(BaseTask):
             agent_conf=self.conf,
             infra=self.infra,
             entrypoint=self.entrypoint,
+            image=self.image,
         )
         returncode = agent.apply()
         if returncode != 0:
