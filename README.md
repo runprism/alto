@@ -4,7 +4,7 @@
 
 <div align="center">
 
-[![Tests](https://github.com/runprism/nomad/actions/workflows/tests.yml/badge.svg?branch=python-version)](https://github.com/runprism/nomad/actions/workflows/tests.yml)
+[![Tests](https://github.com/runprism/nomad/actions/workflows/tests.yml/badge.svg)](https://github.com/runprism/nomad/actions/workflows/tests.yml)
 [![Checked with mypy](http://www.mypy-lang.org/static/mypy_badge.svg)](http://mypy-lang.org/)
 
 
