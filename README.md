@@ -5,6 +5,7 @@
 <div align="center">
 
 [![PyPI version](https://img.shields.io/pypi/v/nomad-dev)](https://pypi.org/project/nomad-dev/)
+![Python version](https://img.shields.io/badge/python-3.8%20%7C%203.9%20%7C%203.10%20%7C%203.11-blue)
 [![Tests](https://github.com/runprism/nomad/actions/workflows/tests.yml/badge.svg)](https://github.com/runprism/nomad/actions/workflows/tests.yml)
 [![Checked with mypy](http://www.mypy-lang.org/static/mypy_badge.svg)](http://mypy-lang.org/)
 
