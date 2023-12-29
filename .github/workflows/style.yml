@@ -19,5 +19,5 @@ jobs:
         pip install -r style_requirements.txt
     - name: mypy
       run: |
-        mypy   nomad/agents/ nomad/parsers/ nomad/mixins/ nomad/tasks/ nomad/constants.py nomad/entrypoints.py nomad/main.py nomad/nomad_logger.py nomad/ui.py nomad/utils.py
-        flake8 nomad/agents/ nomad/parsers/ nomad/mixins/ nomad/tasks/ nomad/constants.py nomad/entrypoints.py nomad/main.py nomad/nomad_logger.py nomad/ui.py nomad/utils.py
+        mypy   nomad/agents/ nomad/parsers/ nomad/tasks/ nomad/constants.py nomad/entrypoints.py nomad/main.py nomad/nomad_logger.py nomad/ui.py nomad/utils.py
+        flake8 nomad/agents/ nomad/parsers/ nomad/tasks/ nomad/constants.py nomad/entrypoints.py nomad/main.py nomad/nomad_logger.py nomad/ui.py nomad/utils.py
