@@ -13,13 +13,13 @@
 
 </div>
 
-# Welcome to alto!
-alto is the easiest way to run any code on the cloud! alto is designed to be used with Prism projects, but it can be used to any arbitrary code (e.g., functions, scripts, Jupyter notebooks, or entire projects)!
+# Welcome to Alto!
+Alto is the easiest way to run any code on the cloud! alto is designed to be used with Prism projects, but it can be used to any arbitrary code (e.g., functions, scripts, Jupyter notebooks, or entire projects)!
 
 
 ## Getting Started
 
-alto can be installed via ```pip```. alto requires Python >= 3.8.
+Aalto can be installed via ```pip```. Alto requires Python >= 3.8.
 
 ```
 pip install --upgrade pip
@@ -62,7 +62,7 @@ Alternatively, you could use the `alto apply` command to first build the cloud e
 Check out our [documentation](https://docs.tryalto.dev/) to see the full list of CLI command and their usage!
 
 ## Cloud environments
-alto currently supports the following cloud environments (which we call "Agents"):
+Alto currently supports the following cloud environments (which we call "Agents"):
 - **ec2**
 
 ## Product Roadmap
