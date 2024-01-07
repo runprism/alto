@@ -10,7 +10,7 @@ from alto.main import cli
 import yaml
 
 
-# Nomad imports
+# Alto imports
 from alto.tests.integration.utils import (
     cli_runner
 )

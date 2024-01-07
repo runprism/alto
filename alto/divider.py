@@ -1,5 +1,5 @@
 """
-Dividers used in Nomad's logging
+Dividers used in Alto's logging
 """
 
 import alto.ui

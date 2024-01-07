@@ -1,5 +1,5 @@
 """
-Entrypoint into Nomad
+Entrypoint into Alto
 """
 
 
@@ -48,7 +48,7 @@ def cli():
 @click.option(
     "--file", "-f",
     type=str,
-    help=f"""Name of new Nomad configuration file. _{alto.ui.GRAY}[default: alto.yml]{alto.ui.RESET}_""",  # noqa
+    help=f"""Name of new Alto configuration file. _{alto.ui.GRAY}[default: alto.yml]{alto.ui.RESET}_""",  # noqa
     required=False,
 )
 @click.option(
@@ -117,12 +117,12 @@ def init(
 @click.option(
     "--file", "-f",
     type=str,
-    help="""Nomad configuration file.""",
+    help="""Alto configuration file.""",
     required=True
 )
 @click.option(
     "--name",
-    help="""Name of agent within Nomad configuration file.""",
+    help="""Name of agent within Alto configuration file.""",
     required=False
 )
 @click.option(
@@ -162,12 +162,12 @@ def apply(file: str, name: str, log_level: str, whitelist_all: bool):
 @click.option(
     "--file", "-f",
     type=str,
-    help="""Nomad configuration file.""",
+    help="""Alto configuration file.""",
     required=True
 )
 @click.option(
     "--name",
-    help="""Name of agent within Nomad configuration file.""",
+    help="""Name of agent within Alto configuration file.""",
     required=False
 )
 @click.option(
@@ -230,12 +230,12 @@ def run(
 @click.option(
     "--file", "-f",
     type=str,
-    help="""Nomad configuration file.""",
+    help="""Alto configuration file.""",
     required=True
 )
 @click.option(
     "--name",
-    help="""Name of agent within Nomad configuration file.""",
+    help="""Name of agent within Alto configuration file.""",
     required=False
 )
 @click.option(
@@ -298,12 +298,12 @@ def build(
 @click.option(
     "--file", "-f",
     type=str,
-    help="""Nomad configuration file.""",
+    help="""Alto configuration file.""",
     required=True
 )
 @click.option(
     "--name",
-    help="""Name of agent within Nomad configuration file.""",
+    help="""Name of agent within Alto configuration file.""",
     required=False
 )
 @click.option(

@@ -17,7 +17,7 @@ from jinja2 import Environment, FileSystemLoader
 import shutil
 import requests
 
-# Nomad imports
+# Alto imports
 from alto.entrypoints import BaseEntrypoint
 from alto.images.meta import BaseImage
 from alto.config import ConfigMixin
@@ -51,7 +51,7 @@ DELETE_DIVIDER = Divider("delete")
 #################
 
 # For testing
-SERVER_URL = os.environ.get("__NOMAD_DOCKER_SERVER_URL__", None)
+SERVER_URL = os.environ.get("__ALTO_DOCKER_SERVER_URL__", None)
 if SERVER_URL is not None:
     client = docker.from_env(environment={
         "DOCKER_HOST": SERVER_URL
@@ -212,7 +212,7 @@ class Docker(BaseImage, ConfigMixin):
         outside of our current working directory.
 
         args:
-            alto_wkdir: Nomad working directory
+            alto_wkdir: Alto working directory
             entrypoint: agent's entrypoint
             additional_paths: additional paths to copy into your infrastructure
         returns:

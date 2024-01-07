@@ -85,7 +85,7 @@ class BaseEntrypoint(metaclass=MetaEntrypoint):
             self.src = self.entrypoint_conf["src"]
 
         # Check if `src` directory exists. Note that if `src` is blank, then Pathlib
-        # will just check if the Nomad configuration file's directory exists.
+        # will just check if the Alto configuration file's directory exists.
         if not Path(self.alto_wkdir / self.src).is_dir():
             raise ValueError("could not parse `src` for entrypoint")
 

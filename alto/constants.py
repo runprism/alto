@@ -1,5 +1,5 @@
 """
-Constants used throughout the Nomad project
+Constants used throughout the Alto project
 """
 
 # Imports
@@ -11,9 +11,9 @@ import sys
 VERSION = "0.0.5"
 
 
-# Nomad internal folder
+# Alto internal folder
 INTERNAL_FOLDER = Path(os.environ.get(
-    "__NOMAD_INTERNAL_FOLDER__", Path(os.path.expanduser("~/.alto"))
+    "__ALTO_INTERNAL_FOLDER__", Path(os.path.expanduser("~/.alto"))
 ))
 if not INTERNAL_FOLDER.is_dir():
     INTERNAL_FOLDER.mkdir(mode=0o770, parents=True, exist_ok=True)

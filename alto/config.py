@@ -26,7 +26,7 @@ class ConfigMixin:
         returns:
             requirements path
         """
-        # Not all Nomad projects will have a `requirements` file.
+        # Not all Alto projects will have a `requirements` file.
         if "requirements" not in agent_conf.keys():
             return ""
 
@@ -35,7 +35,7 @@ class ConfigMixin:
         requirements = agent_conf["requirements"]
 
         # The `requirements.txt` path should always be specified relative to the
-        # directory of the Nomad configuration file.
+        # directory of the Alto configuration file.
         absolute_requirements_path = Path(alto_wkdir / requirements).resolve()
 
         # Check if this file exists
@@ -75,7 +75,7 @@ class ConfigMixin:
             files to donwload as a list. If no download files are specified, then
             return an empty list.
         """
-        # Not all Nomad projects will have a `requirements` file.
+        # Not all Alto projects will have a `requirements` file.
         if "download_files" not in agent_conf.keys():
             return []
         download_files = agent_conf["download_files"]

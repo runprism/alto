@@ -7,7 +7,7 @@ Docker Agent.
 # Imports #
 ###########
 
-# Nomad imports
+# Alto imports
 from alto.agents.base import Agent
 from alto.constants import (
     INTERNAL_FOLDER,
