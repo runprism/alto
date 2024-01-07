@@ -14,7 +14,7 @@ A clear and concise description of what the bug is.
 Create a skeleton below with your project structure.
 ```
 project
-  |-- nomad.yml
+  |-- alto.yml
   |-- src/
       |-- script.py
       ...
@@ -23,7 +23,7 @@ project
 In addition, describe your agent's configuration.
 
 **CLI Arguments**
-Copy and paste the CLI command used to produce the error (e.g., ```$ nomad apply```)
+Copy and paste the CLI command used to produce the error (e.g., ```$ alto apply```)
 
 **Traceback**
 Paste the full traceback of the error message

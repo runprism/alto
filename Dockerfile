@@ -27,8 +27,8 @@ RUN if [[ "$PYTHON_VERSION" < "python3.10" ]] ; then apt-get install -y $PYTHON_
 RUN apt-get install -y openssh-client
 
 # Project dependencies
-COPY . ./nomad/
-WORKDIR ./nomad
+COPY . ./alto/
+WORKDIR ./alto
 RUN $PYTHON_VERSION -m venv /opt/venv
 RUN . /opt/venv/bin/activate && \
     pip install -r dev_requirements.txt
@@ -43,8 +43,8 @@ ARG AWS_DEFAULT_REGION
 ENV AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION
 
 # Docker volume and server URL
-ENV __NOMAD_DOCKER_SERVER_URL__="unix:///var/run/docker.sock"
+ENV __alto_DOCKER_SERVER_URL__="unix:///var/run/docker.sock"
 
 # # Integration tests
-WORKDIR nomad/tests/integration
+WORKDIR alto/tests/integration
 CMD . /opt/venv/bin/activate && pytest

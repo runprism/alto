@@ -19,5 +19,5 @@ jobs:
         pip install -r style_requirements.txt
     - name: mypy
       run: |
-        mypy   nomad/agents/ nomad/parsers/ nomad/tasks/ nomad/constants.py nomad/entrypoints.py nomad/main.py nomad/nomad_logger.py nomad/ui.py nomad/utils.py
-        flake8 nomad/agents/ nomad/parsers/ nomad/tasks/ nomad/constants.py nomad/entrypoints.py nomad/main.py nomad/nomad_logger.py nomad/ui.py nomad/utils.py
+        mypy   alto/agents/ alto/parsers/ alto/tasks/ alto/constants.py alto/entrypoints.py alto/main.py alto/alto_logger.py alto/ui.py alto/utils.py
+        flake8 alto/agents/ alto/parsers/ alto/tasks/ alto/constants.py alto/entrypoints.py alto/main.py alto/alto_logger.py alto/ui.py alto/utils.py

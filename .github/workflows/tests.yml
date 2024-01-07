@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'nomad/**'
+      - 'alto/**'
 
 jobs:
   test:
@@ -42,13 +42,13 @@ jobs:
           AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION=${{ secrets.AWS_DEFAULT_REGION }}
-        tags: mtrivedi50/nomad-dev-${{ matrix.python-version }}:latest
+        tags: mtrivedi50/alto-dev-${{ matrix.python-version }}:latest
     
     - name: Unit tests
       run: |
-        pytest --ignore=nomad/tests/integration
+        pytest --ignore=alto/tests/integration
     
     - name: Integration tests
       run: |
         docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_PASSWORD }}
-        docker run -v /var/run/docker.sock:/var/run/docker.sock mtrivedi50/nomad-dev-${{ matrix.python-version }}:latest
+        docker run -v /var/run/docker.sock:/var/run/docker.sock mtrivedi50/alto-dev-${{ matrix.python-version }}:latest
