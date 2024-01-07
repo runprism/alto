@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://github.com/runprism/alto/blob/new-logo/.github/alto.png" alt="Alto logo" style="width: 65%"/>
+  <img src="https://github.com/runprism/alto/blob/main/.github/alto.png" alt="Alto logo" style="width: 65%"/>
 </p>
 
 <div align="center">
