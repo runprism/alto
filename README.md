@@ -14,12 +14,12 @@
 </div>
 
 # Welcome to Alto!
-Alto is the easiest way to run any code on the cloud! alto is designed to be used with Prism projects, but it can be used to any arbitrary code (e.g., functions, scripts, Jupyter notebooks, or entire projects)!
+Alto is the easiest way to run any code on the cloud! Alto is designed to be used with Prism projects, but it can be used to any arbitrary code (e.g., functions, scripts, Jupyter notebooks, or entire projects)!
 
 
 ## Getting Started
 
-Aalto can be installed via ```pip```. Alto requires Python >= 3.8.
+Alto can be installed via ```pip```. Alto requires Python >= 3.8.
 
 ```
 pip install --upgrade pip
