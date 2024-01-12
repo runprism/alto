@@ -12,7 +12,7 @@ contains the base class for the agent.
 from alto.agents.meta import MetaAgent
 from alto.entrypoints import BaseEntrypoint, Jupyter
 from alto.infras import BaseInfra
-from alto.images import BaseImage, Docker as DockerImage
+from alto.images import BaseImage
 from alto.config import ConfigMixin
 
 # Standard library imports
@@ -83,7 +83,7 @@ class Agent(ConfigMixin, metaclass=MetaAgent):
 
             # If we're using an image, then don't do anything...the Jupyter stuff will
             # be installed in the Docker image itself.
-            if isinstance(self.image, DockerImage):
+            if self.image is not None:
                 True  # do nothing
             else:
                 # Technically, the user's requirements should install ipython and the
