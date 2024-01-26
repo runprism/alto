@@ -1008,7 +1008,7 @@ class Ec2(Agent):
                 '-a': username,
                 '-z': password,
                 '-r': registry,
-                '-i': f"{self.image.image_name}:{self.image.image_version}"
+                '-i': f"{self.image.image_name}:{self.image.image_version}"  # type: ignore  # noqa
             }
             self.apply_command.set_additional_optargs(additional_optargs)
 
@@ -1031,7 +1031,7 @@ class Ec2(Agent):
                 '-a': username,
                 '-z': password,
                 '-r': registry,
-                '-i': f"{self.image.image_name}:{self.image.image_version}"
+                '-i': f"{self.image.image_name}:{self.image.image_version}"  # type: ignore # noqa
             }
             self.run_command.set_additional_optargs(additional_optargs)
 
