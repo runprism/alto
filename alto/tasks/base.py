@@ -37,7 +37,6 @@ from alto.infras import (  # noqa
 from alto.images import (  # noqa
     MetaImage,
     BaseImage,
-    Docker
 )
 
 
@@ -231,6 +230,11 @@ class BaseTask:
                 raise ValueError(
                     f"unrecognized image type `{image['type']}`"
                 )
+
+            # Import
+            if image["type"] == "docker":
+                from alto.images.docker_image import Docker  # noqa
+
             self.image = MetaImage.get_image(image["type"])(
                 alto_wkdir=self.alto_wkdir,
                 image_name=self.name,

@@ -48,20 +48,20 @@ def cli():
 @click.option(
     "--file", "-f",
     type=str,
-    help=f"""Name of new Alto configuration file. _{alto.ui.GRAY}[default: alto.yml]{alto.ui.RESET}_""",  # noqa
+    help=f"""Name of new Alto configuration file. _{alto.ui.DARK_BLUE}[default: alto.yml]{alto.ui.RESET}_""",  # noqa
     required=False,
 )
 @click.option(
     "--entrypoint", "-f",
     type=click.Choice(SUPPORTED_ENTRYPOINTS),
-    help=f"""Entrypoint type. _{alto.ui.GRAY}[default: script]{alto.ui.RESET}_""",  # noqa
+    help=f"""Entrypoint type. _{alto.ui.DARK_BLUE}[default: script]{alto.ui.RESET}_""",  # noqa
     required=False,
 )
 @click.option(
     '--log-level', '-l',
     type=click.Choice(['info', 'warn', 'error', 'debug']),
     default="info",
-    help=f"""Set the log level. _{alto.ui.GRAY}[default: info]{alto.ui.RESET}_""",
+    help=f"""Set the log level. _{alto.ui.DARK_BLUE}[default: info]{alto.ui.RESET}_""",
     required=False,
 )
 def init(
@@ -86,13 +86,13 @@ def init(
             raise ValueError(f"unsupported type `{type}`")
     if file is None:
         file = click.prompt(
-            f"What would you like the name of your configuration file to be {alto.ui.GRAY}[default: alto.yml]{alto.ui.RESET}?",  # noqa: E501
+            f"What would you like the name of your configuration file to be {alto.ui.DARK_BLUE}[default: alto.yml]{alto.ui.RESET}?",  # noqa: E501
             default="alto.yml",
             show_default=False
         )
     if entrypoint is None:
         entrypoint = click.prompt(
-            f"What is your code's entrypoint? {alto.ui.GRAY}[default: script]{alto.ui.RESET}?",  # noqa: E501
+            f"What is your code's entrypoint? {alto.ui.DARK_BLUE}[default: script]{alto.ui.RESET}?",  # noqa: E501
             default="script",
             show_default=False
         )
@@ -129,14 +129,14 @@ def init(
     '--log-level', '-l',
     type=click.Choice(['info', 'warn', 'error', 'debug']),
     default="info",
-    help=f"""Set the log level. _{alto.ui.GRAY}[default: info]{alto.ui.RESET}_""",
+    help=f"""Set the log level. _{alto.ui.DARK_BLUE}[default: info]{alto.ui.RESET}_""",
     required=False
 )
 @click.option(
     '--whitelist-all',
     is_flag=True,
     default=False,
-    help=f"""Whitelist all IP addresses. If `False`, then only whitelist your current IP address. _{alto.ui.GRAY}[default: False]{alto.ui.RESET}_""",  # noqa
+    help=f"""Whitelist all IP addresses. If `False`, then only whitelist your current IP address. _{alto.ui.DARK_BLUE}[default: False]{alto.ui.RESET}_""",  # noqa
     required=False,
 )
 def apply(file: str, name: str, log_level: str, whitelist_all: bool):
@@ -174,28 +174,28 @@ def apply(file: str, name: str, log_level: str, whitelist_all: bool):
     '--log-level', '-l',
     type=click.Choice(['info', 'warn', 'error', 'debug']),
     default="info",
-    help=f"""Set the log level. _{alto.ui.GRAY}[default: info]{alto.ui.RESET}_""",
+    help=f"""Set the log level. _{alto.ui.DARK_BLUE}[default: info]{alto.ui.RESET}_""",
     required=False
 )
 @click.option(
     '--no-delete-failure',
     is_flag=True,
     default=False,
-    help=f"""Preserve the cloud resources after a failed run. _{alto.ui.GRAY}[default: False]{alto.ui.RESET}_""",  # noqa
+    help=f"""Preserve the cloud resources after a failed run. _{alto.ui.DARK_BLUE}[default: False]{alto.ui.RESET}_""",  # noqa
     required=False
 )
 @click.option(
     '--no-delete-success',
     is_flag=True,
     default=False,
-    help=f"""Preserve the cloud resources after a successful run. _{alto.ui.GRAY}[default: False]{alto.ui.RESET}_""",  # noqa
+    help=f"""Preserve the cloud resources after a successful run. _{alto.ui.DARK_BLUE}[default: False]{alto.ui.RESET}_""",  # noqa
     required=False
 )
 @click.option(
     '--whitelist-all',
     is_flag=True,
     default=False,
-    help=f"""Whitelist all IP addresses. If `False`, then only whitelist your current IP address. _{alto.ui.GRAY}[default: False]{alto.ui.RESET}_""",  # noqa
+    help=f"""Whitelist all IP addresses. If `False`, then only whitelist your current IP address. _{alto.ui.DARK_BLUE}[default: False]{alto.ui.RESET}_""",  # noqa
     required=False,
 )
 def run(
@@ -242,27 +242,27 @@ def run(
     '--log-level', '-l',
     type=click.Choice(['info', 'warn', 'error', 'debug']),
     default="info",
-    help=f"""Set the log level. _{alto.ui.GRAY}[default: info]{alto.ui.RESET}_""",
+    help=f"""Set the log level. _{alto.ui.DARK_BLUE}[default: info]{alto.ui.RESET}_""",
     required=False
 )
 @click.option(
     '--no-delete-failure',
     is_flag=True,
     default=False,
-    help=f"""Preserve the cloud resources after a failed build. _{alto.ui.GRAY}[default: False]{alto.ui.RESET}_""",  # noqa
+    help=f"""Preserve the cloud resources after a failed build. _{alto.ui.DARK_BLUE}[default: False]{alto.ui.RESET}_""",  # noqa
 )
 @click.option(
     '--no-delete-success',
     is_flag=True,
     default=False,
-    help=f"""Preserve the cloud resources after a successful build. _{alto.ui.GRAY}[default: False]{alto.ui.RESET}_""",  # noqa
+    help=f"""Preserve the cloud resources after a successful build. _{alto.ui.DARK_BLUE}[default: False]{alto.ui.RESET}_""",  # noqa
     required=False
 )
 @click.option(
     '--whitelist-all',
     is_flag=True,
     default=False,
-    help=f"""Whitelist all IP addresses. If `False`, then only whitelist your current IP address. _{alto.ui.GRAY}[default: False]{alto.ui.RESET}_""",  # noqa
+    help=f"""Whitelist all IP addresses. If `False`, then only whitelist your current IP address. _{alto.ui.DARK_BLUE}[default: False]{alto.ui.RESET}_""",  # noqa
     required=False,
 )
 def build(
@@ -310,7 +310,7 @@ def build(
     '--log-level', '-l',
     type=click.Choice(['info', 'warn', 'error', 'debug']),
     default="info",
-    help=f"""Set the log level. _{alto.ui.GRAY}[default: info]{alto.ui.RESET}_""",
+    help=f"""Set the log level. _{alto.ui.DARK_BLUE}[default: info]{alto.ui.RESET}_""",
     required=False
 )
 def delete(file: str, name: str, log_level: str):
