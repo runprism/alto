@@ -25,9 +25,7 @@ DEFAULT_LOGGER_NAME = "alto_logger"
 
 # Supported cloud agents
 SUPPORTED_AGENTS = [
-    "docker",
     "ec2",
-    "docker-on-ec2"
 ]
 
 
