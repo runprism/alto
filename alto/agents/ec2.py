@@ -17,7 +17,7 @@ import alto.ui
 from alto.entrypoints import BaseEntrypoint
 from alto.infras import BaseInfra
 from alto.command import AgentCommand
-from alto.images import BaseImage, Docker as DockerImage
+from alto.images import BaseImage
 from alto.divider import Divider
 
 # Standard library imports
@@ -90,7 +90,7 @@ class Ec2(Agent):
 
         # Use slightly different scripts if the user wants to run a Docker image on
         # their EC2 instance.
-        if isinstance(image, DockerImage):
+        if image is not None and image.image_conf["type"] == "docker":
             self.AGENT_APPLY_SCRIPT = f"{scripts_dir}/docker/ec2/apply.sh"
             self.AGENT_RUN_SCRIPT = f"{scripts_dir}/docker/ec2/run.sh"
 
@@ -997,7 +997,7 @@ class Ec2(Agent):
             raise ValueError("object does not have `apply_command` attribute!")
 
         # If we're running a Docker image on our EC2 instance, then update the arguments
-        if isinstance(self.image, DockerImage):
+        if self.image is not None and self.image.image_conf["type"] == "docker":
             self.apply_command.set_accepted_apply_optargs(['-p', '-u', '-n'])
 
             # Additional optargs. Note that this function is called AFTER we push our
@@ -1008,7 +1008,7 @@ class Ec2(Agent):
                 '-a': username,
                 '-z': password,
                 '-r': registry,
-                '-i': f"{self.image.image_name}:{self.image.image_version}"
+                '-i': f"{self.image.image_name}:{self.image.image_version}"  # type: ignore  # noqa
             }
             self.apply_command.set_additional_optargs(additional_optargs)
 
@@ -1020,7 +1020,7 @@ class Ec2(Agent):
             raise ValueError("object does not have `run_command` attribute!")
 
         # If we're running a Docker image on our EC2 instance, then update the arguments
-        if isinstance(self.image, DockerImage):
+        if self.image is not None and self.image.image_conf["type"] == "docker":
             self.run_command.set_accepted_apply_optargs(['-p', '-u', '-n', '-f', '-d'])
 
             # Additional optargs. Note that this function is called AFTER we push our
@@ -1031,7 +1031,7 @@ class Ec2(Agent):
                 '-a': username,
                 '-z': password,
                 '-r': registry,
-                '-i': f"{self.image.image_name}:{self.image.image_version}"
+                '-i': f"{self.image.image_name}:{self.image.image_version}"  # type: ignore # noqa
             }
             self.run_command.set_additional_optargs(additional_optargs)
 

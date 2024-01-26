@@ -8,7 +8,7 @@ from pathlib import Path
 import sys
 
 # Version
-VERSION = "0.0.5"
+VERSION = "0.0.6"
 
 
 # Alto internal folder
@@ -25,9 +25,7 @@ DEFAULT_LOGGER_NAME = "alto_logger"
 
 # Supported cloud agents
 SUPPORTED_AGENTS = [
-    "docker",
     "ec2",
-    "docker-on-ec2"
 ]
 
 
