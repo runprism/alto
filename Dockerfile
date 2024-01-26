@@ -43,7 +43,7 @@ ARG AWS_DEFAULT_REGION
 ENV AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION
 
 # Docker volume and server URL
-ENV __alto_DOCKER_SERVER_URL__="unix:///var/run/docker.sock"
+ENV __ALTO_DOCKER_SERVER_URL__="unix:///var/run/docker.sock"
 
 # # Integration tests
 WORKDIR alto/tests/integration
