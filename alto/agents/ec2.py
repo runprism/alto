@@ -1086,7 +1086,7 @@ class Ec2(Agent):
             self.run_command.set_additional_optargs(additional_optargs)
 
     def _execute_apply_script(self,
-        cmd: list[str]
+        cmd: List[str]
     ):
         # Open a subprocess and stream the logs
         out, err, returncode = self.stream_logs(cmd, StageEnum.AGENT_BUILD)

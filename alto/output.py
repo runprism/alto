@@ -7,7 +7,7 @@ from our logging infrastructure, which is handled in `alto_logger.py`.
 import argparse
 import logging
 import sys
-from typing import Optional
+from typing import Optional, List
 
 from rich.console import Console, Group, RenderableType
 from rich.live import Live
@@ -26,7 +26,7 @@ class OutputManager:
     logger: logging.Logger
 
     # Tracking
-    current_renders_all: list[Tree]
+    current_renders_all: List[Tree]
     current_render: Optional[Tree]
     live: Optional[Live]
 
