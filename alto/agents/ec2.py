@@ -36,8 +36,6 @@ import subprocess
 import urllib.request
 import stat
 
-from rich.tree import Tree
-
 
 ##########
 # Logger #
@@ -693,7 +691,6 @@ class Ec2(Agent):
         instance_name: str,
         instance_type: str,
         ami_image: str,
-        tree: Optional[Tree] = None
     ):
         """
         Create EC2 instance
