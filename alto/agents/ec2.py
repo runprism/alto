@@ -73,7 +73,7 @@ class Ec2(Agent):
         infra: BaseInfra,
         entrypoint: BaseEntrypoint,
         image: Optional[BaseImage],
-        output_mgr: Optional[OutputManager],
+        output_mgr: OutputManager,
         mode: str = "prod"
     ):
         Agent.__init__(
@@ -736,7 +736,8 @@ class Ec2(Agent):
                     stage=StageEnum.AGENT_BUILD,
                     level="info",
                     msg=f"Created key pair {log_instance_name}",
-                    step_completed_msg="Created key-pair",
+                    renderable_type="Created key-pair",
+                    is_step_completion=True,
                     is_substep=True
                 )
 
@@ -764,7 +765,8 @@ class Ec2(Agent):
                     stage=StageEnum.AGENT_BUILD,
                     level="info",
                     msg=f"Using existing key-pair {log_instance_name} at {log_instance_path}",  # noqa
-                    step_completed_msg="Using existing key-pair",
+                    renderable_type="Using existing key-pair",
+                    is_step_completion=True,
                     is_substep=True
                 )
 
@@ -787,7 +789,8 @@ class Ec2(Agent):
                     stage=StageEnum.AGENT_BUILD,
                     level="info",
                     msg=f"Created security group with ID {log_security_group_id} in VPC {log_vpc_id}",  # noqa: E501
-                    step_completed_msg="Created security group",
+                    renderable_type="Created security group",
+                    is_step_completion=True,
                     is_substep=True
                 )
 
@@ -809,7 +812,8 @@ class Ec2(Agent):
                     stage=StageEnum.AGENT_BUILD,
                     level="info",
                     msg=f"Using existing security group {log_security_group_id}",  # noqa: E501
-                    step_completed_msg="Using existing security group",
+                    renderable_type="Using existing security group",
+                    is_step_completion=True,
                     is_substep=True
                 )
 
@@ -851,7 +855,8 @@ class Ec2(Agent):
                     stage=StageEnum.AGENT_BUILD,
                     level="info",
                     msg=f"Created EC2 instance with ID {log_instance_id_template.format(instance_id=instance_id)}",  # noqa: E501
-                    step_completed_msg="Created EC2 instance",
+                    renderable_type="Created EC2 instance",
+                    is_step_completion=True,
                     is_substep=True
                 )
                 time.sleep(1)
@@ -866,7 +871,8 @@ class Ec2(Agent):
                     stage=StageEnum.AGENT_BUILD,
                     level="info",
                     msg=f"Using existing EC2 instance with ID {log_instance_id_template.format(instance_id=instance_id)}",  # noqa: E501
-                    step_completed_msg="Using existing EC2 instance",
+                    renderable_type="Using existing EC2 instance",
+                    is_step_completion=True,
                     is_substep=True
                 )
 
@@ -976,6 +982,8 @@ class Ec2(Agent):
                         stage=stage,
                         level="info",
                         msg=output.rstrip(),
+                        renderable_type=output.rstrip() if stage == StageEnum.AGENT_RUN else None,  # noqa
+                        is_step_completion=False,
                     )
             else:
                 if not re.findall(r"^[\-]+$", output.decode().rstrip()):
@@ -984,6 +992,8 @@ class Ec2(Agent):
                         stage=stage,
                         level="info",
                         msg=output.decode().rstrip(),
+                        renderable_type=output.decode().rstrip() if stage == StageEnum.AGENT_RUN else None,  # noqa
+                        is_step_completion=False,
                     )
 
     def stream_logs(self,
@@ -1279,6 +1289,7 @@ class Ec2(Agent):
             raise ValueError("incompatible public DNS name!")
 
         # The agent data should exist...Build the shell command
+        self.output_mgr.step_starting("[blue]Running app...[/blue]")
         self.run_command = AgentCommand(
             executable='/bin/bash',
             script=self.AGENT_RUN_SCRIPT,
@@ -1307,6 +1318,7 @@ class Ec2(Agent):
             )
 
         # Return the returncode.
+        self.output_mgr.step_completed("App completed!")
         return returncode
 
     def delete(self, overrides={}):
@@ -1318,15 +1330,17 @@ class Ec2(Agent):
 
         In addition, remove the PEM key from our local files
         """
-        self.output_mgr.step_starting("[blue]Deleting resources...[/blue]")
 
         # Delete the image, if it exists
         if self.image is not None:
             self.image.delete()
 
         # Logging styling
+        self.output_mgr.step_starting("[blue]Deleting resources...[/blue]")
+
+        # Safety check. mypy thinks this statement is unreachable.
         if self.instance_name is None:
-            self.output_mgr.log_output(
+            self.output_mgr.log_output(  # type: ignore
                 agent_img_name=self.instance_name,
                 stage=StageEnum.AGENT_DELETE,
                 level="info",
@@ -1345,7 +1359,7 @@ class Ec2(Agent):
 
         else:
             self.output_mgr.step_starting(
-                "[blue]Deleting key-pair...[/blue]",
+                "Deleting key-pair...",
                 is_substep=True
             )
             log_key_pair = f"{alto.ui.MAGENTA}{self.key_name}{alto.ui.RESET}"
@@ -1355,8 +1369,10 @@ class Ec2(Agent):
                 stage=StageEnum.AGENT_DELETE,
                 level="info",
                 msg=f"Deleting key-pair {log_key_pair} at {log_key_path}",
-                step_completed_msg="Deleted key pair",
-                is_substep=True
+                renderable_type="Deleted key pair",
+                is_step_completion=True,
+                is_substep=True,
+                symbol="[red]✕[/red]",
             )
             self.ec2_client.delete_key_pair(
                 KeyName=self.key_name
@@ -1384,7 +1400,7 @@ class Ec2(Agent):
 
         else:
             self.output_mgr.step_starting(
-                "[blue]Deleting instance...[/blue]",
+                "Deleting instance...",
                 is_substep=True
             )
             log_instance_id = f"{alto.ui.MAGENTA}{self.instance_id}{alto.ui.RESET}"  # noqa: E501
@@ -1393,8 +1409,10 @@ class Ec2(Agent):
                 stage=StageEnum.AGENT_DELETE,
                 level="info",
                 msg=f"Deleting instance {log_instance_id}",
-                step_completed_msg="Deleted instance",
+                renderable_type="Deleted instance",
+                is_step_completion=True,
                 is_substep=True,
+                symbol="[red]✕[/red]",
             )
             _ = self.ec2_client.terminate_instances(
                 InstanceIds=[self.instance_id]
@@ -1411,7 +1429,7 @@ class Ec2(Agent):
 
         else:
             self.output_mgr.step_starting(
-                "[blue]Deleting security group...[/blue]",
+                "Deleting security group...",
                 is_substep=True
             )
             log_security_group_id = f"{alto.ui.MAGENTA}{self.security_group_id}{alto.ui.RESET}"  # noqa: E501
@@ -1425,8 +1443,10 @@ class Ec2(Agent):
                         stage=StageEnum.AGENT_DELETE,
                         level="info",
                         msg=f"Deleting security group {log_security_group_id}",
-                        step_completed_msg="Deleted security group",
+                        renderable_type="Deleted security group",
+                        is_step_completion=True,
                         is_substep=True,
+                        symbol="[red]✕[/red]",
                     )
                     break
                 except botocore.exceptions.ClientError as e:
@@ -1441,7 +1461,7 @@ class Ec2(Agent):
                     else:
                         raise e
 
-        self.output_mgr.step_completed("Deleted resources...")
+        self.output_mgr.step_completed("Deleted resources!")
         self.output_mgr.stop_live()
 
         # Remove the data from the ec2.json file

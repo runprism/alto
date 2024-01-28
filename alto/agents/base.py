@@ -39,7 +39,7 @@ class Agent(ConfigMixin, metaclass=MetaAgent):
         infra: BaseInfra,
         entrypoint: BaseEntrypoint,
         image: Optional[BaseImage],
-        output_mgr: Optional[OutputManager],
+        output_mgr: OutputManager,
         mode: str = "prod"
     ):
         """
@@ -58,7 +58,7 @@ class Agent(ConfigMixin, metaclass=MetaAgent):
         self.infra = infra
         self.entrypoint = entrypoint
         self.image: Optional[BaseImage] = image
-        self.output_mgr: Optional[OutputManager] = output_mgr
+        self.output_mgr: OutputManager = output_mgr
 
         # Check the configuration
         self.check_conf(self.agent_conf)

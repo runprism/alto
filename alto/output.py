@@ -87,7 +87,7 @@ class OutputManager:
     def step_starting(self,
         message: str,
         is_substep: bool = False
-    ):
+    ) -> Optional[Live]:
         """
         Returns element to be rendered when a step is starting.
 
@@ -97,7 +97,7 @@ class OutputManager:
         """
         # If we're in `verbose` mode, then don't do anything
         if self.verbose:
-            return
+            return None
 
         # Otherwise, if we wish to add our step as a subtask, then we must be in a Tree
         elif is_substep:
@@ -122,10 +122,13 @@ class OutputManager:
             # Make `Live`
             self.make_live(tree)
 
+        return self.live
+
     def step_completed(self,
-        message: str,
+        message: RenderableType,
         is_substep: bool = False,
-    ) -> Optional[RenderableType]:
+        symbol: Optional[str] = None,
+    ) -> None:
         """
         Returns the element to be rendered when a step is completed.
 
@@ -135,17 +138,22 @@ class OutputManager:
         """
         STEP_COMPLETED = "[green]✓[/green]"
         SUBSTEP_COMPLETED = "🔨"
-        symbol = SUBSTEP_COMPLETED if is_substep else STEP_COMPLETED
+        if symbol is None:
+            symbol = SUBSTEP_COMPLETED if is_substep else STEP_COMPLETED
         msg = f"{symbol} {message}"
 
         # If we're in `verbose` mode, then don't do anything
         if self.verbose:
-            return
+            return None
         else:
             tree = self.current_renders_all.pop()
             tree.label = msg
+
         if not is_substep:
             self.console.print(self.current_render)
+            self.stop_live()
+
+        return None
 
     def step_failed(self,
         message: str,
@@ -159,19 +167,15 @@ class OutputManager:
         symbol = "[red]✕"
         return f"{symbol} {message}[/red]"
 
-    def step_progress(self,
-        output_msg: RenderableType,
-    ):
-        self.tree.add(output_msg)
-        self.live.update(self.tree)
-
     def log_output(self,
         agent_img_name: str,
         stage: StageEnum,
         level: str,
         msg: str,
-        step_completed_msg: Optional[RenderableType] = None,
+        renderable_type: Optional[RenderableType] = None,
+        is_step_completion: bool = False,
         is_substep: bool = False,
+        symbol: Optional[str] = None,
     ) -> None:
         """
         Log message to stdout
@@ -207,5 +211,8 @@ class OutputManager:
                 raise ValueError(f"unrecognized `level` {level}")
 
         else:
-            if step_completed_msg is not None:
-                self.step_completed(step_completed_msg, is_substep)
+            if renderable_type is not None:
+                if is_step_completion:
+                    self.step_completed(renderable_type, is_substep, symbol)
+                else:
+                    self.console.print(renderable_type)

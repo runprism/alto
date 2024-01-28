@@ -243,6 +243,7 @@ class BaseTask:
                 alto_wkdir=self.alto_wkdir,
                 image_name=self.name,
                 image_conf=image,
+                output_mgr=self.output_mgr,
             )
 
         else:
