@@ -18,7 +18,6 @@ from alto.entrypoints import BaseEntrypoint
 from alto.infras import BaseInfra
 from alto.command import AgentCommand
 from alto.images import BaseImage
-from alto.divider import Divider
 from alto.output import OutputManager
 from alto.ui import StageEnum
 
@@ -46,11 +45,6 @@ from rich.tree import Tree
 
 import logging
 logger = logging.getLogger(DEFAULT_LOGGER_NAME)
-
-# Dividers
-BUILD_DIVIDER = Divider("build")
-RUN_DIVIDER = Divider("run")
-DELETE_DIVIDER = Divider("delete")
 
 
 ####################
