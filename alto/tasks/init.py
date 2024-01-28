@@ -30,7 +30,10 @@ class InitTask:
         self.alto_wkdir = Path(self.args.wkdir)
 
         # Set up logger
-        set_up_logger(self.args.log_level)
+        if self.args.verbose:
+            set_up_logger(self.args.log_level)
+        else:
+            set_up_logger('not-set')
 
     def run(self):
         """

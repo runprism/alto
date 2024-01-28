@@ -7,6 +7,7 @@ import alto.ui
 # Constants
 LOG_DIVIDERS = [
     "image",
+    "push",
     "build",
     "delete",
     "run",

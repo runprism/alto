@@ -35,6 +35,7 @@ class DeleteTask(BaseTask):
             infra=self.infra,
             entrypoint=self.entrypoint,
             image=self.image,
+            output_mgr=self.output_mgr,
         )
         returncode = agent.delete()
         if returncode != 0:

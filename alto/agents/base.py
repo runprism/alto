@@ -14,6 +14,7 @@ from alto.entrypoints import BaseEntrypoint, Jupyter
 from alto.infras import BaseInfra
 from alto.images import BaseImage
 from alto.config import ConfigMixin
+from alto.output import OutputManager
 
 # Standard library imports
 import argparse
@@ -38,6 +39,7 @@ class Agent(ConfigMixin, metaclass=MetaAgent):
         infra: BaseInfra,
         entrypoint: BaseEntrypoint,
         image: Optional[BaseImage],
+        output_mgr: Optional[OutputManager],
         mode: str = "prod"
     ):
         """
@@ -56,6 +58,7 @@ class Agent(ConfigMixin, metaclass=MetaAgent):
         self.infra = infra
         self.entrypoint = entrypoint
         self.image: Optional[BaseImage] = image
+        self.output_mgr: Optional[OutputManager] = output_mgr
 
         # Check the configuration
         self.check_conf(self.agent_conf)

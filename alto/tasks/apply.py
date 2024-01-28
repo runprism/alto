@@ -35,6 +35,7 @@ class ApplyTask(BaseTask):
             infra=self.infra,
             entrypoint=self.entrypoint,
             image=self.image,
+            output_mgr=self.output_mgr,
         )
         returncode = agent.apply()
         if returncode != 0:
