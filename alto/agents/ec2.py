@@ -277,7 +277,14 @@ class Ec2(Agent):
             with open(json_path, 'r') as f:
                 json_data = json.loads(f.read())
             f.close()
-            json_data = json_data[self.instance_name]
+
+            try:
+                json_data = json_data[self.instance_name]
+            except KeyError:
+                json_data = {
+                    "resources": {},
+                    "files": {},
+                }
 
             # Resources and files
             resources = json_data["resources"]
@@ -1017,25 +1024,17 @@ class Ec2(Agent):
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            shell=False,
-            universal_newlines=True,
+            text=True
         )
         while True:
-            # For whatever reason, the `prism` command places the log in stderr, not
-            # stdout
-            if stage == StageEnum.AGENT_BUILD:
-                output = process.stdout.readline()  # type: ignore
-                stderr = process.stderr.readline()  # type: ignore
-            else:
-                output = process.stderr.readline()  # type: ignore
-                stderr = None
+            output = process.stdout
+            if output is not None:
+                output = output.readline()  # type: ignore
 
             # Stream the logs
             if process.poll() is not None:
                 break
             self._log_output(output, stage)
-            if stderr:
-                self._log_output(stderr, stage)
 
         return process.stdout, process.stderr, process.returncode
 
