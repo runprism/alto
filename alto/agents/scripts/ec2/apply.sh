@@ -210,7 +210,7 @@ for keyvalue in "${env_array[@]}"; do
 
 	# Update the key-value pair in .bashrc if it exists
     if ssh -i ${pem_path} ${user}@${public_dns_name} "grep -q '^export ${key}=' ~/.bashrc"; then
-        ssh -i ${pem_path} ${user}@${public_dns_name} "sed -i 's/^export ${key}=.*$/export ${key}=${value}/' ~/.bashrc"
+        ssh -i ${pem_path} ${user}@${public_dns_name} "sed -i 's|^export ${key}=.*$|export ${key}=${value}|' ~/.bashrc"
 		exit_code=$?
 		if [ $exit_code -eq 1 ]; then
 			exit 1
