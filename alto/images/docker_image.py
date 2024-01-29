@@ -341,7 +341,7 @@ class Docker(BaseImage, ConfigMixin):
             dockerfile_path = Path(context) / "Dockerfile"
 
         # Create image
-        self.output_mgr.step_starting("[blue]Building image[/blue]")
+        self.output_mgr.step_starting("[dodger_blue2]Building image[/dodger_blue2]")
         resp = self.build_client.build(
             path=str(dockerfile_path.parent),
             tag=f"{self.image_name}:{new_img_version}",
@@ -401,7 +401,7 @@ class Docker(BaseImage, ConfigMixin):
         """
         Delete the Docker agent
         """
-        self.output_mgr.step_starting("[blue]Deleting image[/blue]")
+        self.output_mgr.step_starting("[dodger_blue2]Deleting image[/dodger_blue2]")
 
         # Remove all images with the label "stage=intermediate"
         images = client.images.list(

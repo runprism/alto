@@ -103,7 +103,7 @@ class OutputManager:
         elif is_substep:
             if not isinstance(self.current_render, Tree):
                 raise ValueError("something went wrong!")
-            spinner = Spinner(name="dots", text=message, style="blue")
+            spinner = Spinner(name="dots", text=message, style="dodger_blue2")
             subtree = Tree(spinner, guide_style="gray50")
             self.current_render.add(subtree)
 
@@ -112,7 +112,7 @@ class OutputManager:
 
         # Otherwise, we're starting a fresh Tree
         else:
-            spinner = Spinner(name="dots", text=message, style="blue")
+            spinner = Spinner(name="dots", text=message, style="dodger_blue2")
             tree = Tree(spinner, guide_style="gray50")
 
             # Tracking

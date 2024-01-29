@@ -989,7 +989,7 @@ class Ec2(Agent):
                         stage=stage,
                         level="info",
                         msg=output.rstrip(),
-                        renderable_type=output.rstrip() if stage == StageEnum.AGENT_RUN else None,  # noqa
+                        renderable_type=f"[dodger_blue2]{output.rstrip()}[/dodger_blue2]" if stage == StageEnum.AGENT_RUN else None,  # noqa
                         is_step_completion=False,
                     )
             else:
@@ -999,7 +999,7 @@ class Ec2(Agent):
                         stage=stage,
                         level="info",
                         msg=output.decode().rstrip(),
-                        renderable_type=output.decode().rstrip() if stage == StageEnum.AGENT_RUN else None,  # noqa
+                        renderable_type=f"[dodger_blue2]{output.decode().rstrip()}[/dodger_blue2]" if stage == StageEnum.AGENT_RUN else None,  # noqa
                         is_step_completion=False,
                     )
 
@@ -1195,7 +1195,7 @@ class Ec2(Agent):
 
         # Create the instance. If we're not streaming all logs, then indicate to the
         # user that we're building resources
-        self.output_mgr.step_starting("[blue]Building resources...[/blue]")
+        self.output_mgr.step_starting("[dodger_blue2]Building resources...[/dodger_blue2]")  # noqa
         data = self.create_instance(
             self.ec2_client,
             self.ec2_resource,
@@ -1236,7 +1236,7 @@ class Ec2(Agent):
             cmd = self.apply_command.process_cmd()
 
             # Open a subprocess and stream the logs
-            self.output_mgr.step_starting("[blue]Building agent...[/blue]")
+            self.output_mgr.step_starting("[dodger_blue2]Building agent...[/dodger_blue2]")  # noqa
             _, _, returncode = self._execute_apply_script(cmd)
             self.output_mgr.step_completed("Built agent!", is_substep=False)
 
@@ -1288,7 +1288,7 @@ class Ec2(Agent):
             raise ValueError("incompatible public DNS name!")
 
         # The agent data should exist...Build the shell command
-        self.output_mgr.step_starting("[blue]Running app...[/blue]")
+        self.output_mgr.step_starting("[dodger_blue2]Running app...[/dodger_blue2]")
         self.run_command = AgentCommand(
             executable='/bin/bash',
             script=self.AGENT_RUN_SCRIPT,
@@ -1335,7 +1335,7 @@ class Ec2(Agent):
             self.image.delete()
 
         # Logging styling
-        self.output_mgr.step_starting("[blue]Deleting resources...[/blue]")
+        self.output_mgr.step_starting("[dodger_blue2]Deleting resources...[/dodger_blue2]")  # noqa
 
         # Safety check. mypy thinks this statement is unreachable.
         if self.instance_name is None:

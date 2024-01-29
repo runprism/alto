@@ -252,7 +252,7 @@ class Ecr(BaseRegistry):
         docker_client.login(username, password, registry=self.image_conf["registry"])
 
         # Push the Docker image to ECR
-        self.output_mgr.step_starting("[blue]Pushing image[/blue]")
+        self.output_mgr.step_starting("[dodger_blue2]Pushing image[/dodger_blue2]")
         for line in docker_client.images.push(
             ecr_image,
             tag=image_tag,
@@ -329,7 +329,7 @@ class Dockerhub(BaseRegistry):
         image.tag(dockerhub_image, tag=image_tag)
 
         # Push the Docker image to ECR
-        self.output_mgr.step_starting("[blue]Pushing image[/blue]")
+        self.output_mgr.step_starting("[dodger_blue2]Pushing image[/dodger_blue2]")
         for line in docker_client.images.push(
             dockerhub_image,
             tag=image_tag,
