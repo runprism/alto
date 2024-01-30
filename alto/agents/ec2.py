@@ -1293,7 +1293,7 @@ class Ec2(Agent):
             raise ValueError("incompatible public DNS name!")
 
         # The agent data should exist...Build the shell command
-        self.output_mgr.step_starting("[dodger_blue2]Running app...[/dodger_blue2]")
+        self.output_mgr.step_starting("[dodger_blue2]Running entrypoint...[/dodger_blue2]")  # noqa
         self.run_command = AgentCommand(
             executable='/bin/bash',
             script=self.AGENT_RUN_SCRIPT,
@@ -1325,7 +1325,7 @@ class Ec2(Agent):
         if returncode != 0:
             self.output_mgr.step_failed()
         else:
-            self.output_mgr.step_completed("App completed!")
+            self.output_mgr.step_completed("Entrypoint completed!")
         return returncode
 
     def delete(self, overrides={}):
