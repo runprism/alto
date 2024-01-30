@@ -8,7 +8,7 @@ from pathlib import Path
 import sys
 
 # Version
-VERSION = "0.0.6"
+VERSION = "0.0.7"
 
 
 # Alto internal folder
