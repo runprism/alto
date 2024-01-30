@@ -155,17 +155,36 @@ class OutputManager:
 
         return None
 
-    def step_failed(self,
-        message: str,
-    ) -> RenderableType:
+    def step_failed(self) -> None:
         """
         Returns the element to be rendered when a step is errored out.
 
         args:
             message: message to log
+            is_substep: boolean indicating whether step is a sub-step
         """
-        symbol = "[red]✕"
-        return f"{symbol} {message}[/red]"
+        # If we're in `verbose` mode, then don't do anything
+        if self.verbose:
+            return None
+        else:
+            tree: Tree = self.current_renders_all.pop()
+
+            # We know that, in our tree, the labels are always spinners. Mypy doesn't
+            # know this, so it throws an error
+            lbl: Spinner = tree.label  # type: ignore
+            txt = lbl.text.__str__()
+            tree.label = f"[red]✕ Failed when {txt.lower().replace('...', '')}[/red]"  # noqa
+
+            # Skip the remaining tasks
+            while len(self.current_renders_all) > 0:
+                curr_elt: Tree = self.current_renders_all.pop()
+                curr_lbl: Spinner = curr_elt.label  # type: ignore
+                curr_txt = curr_lbl.text.__str__()
+                curr_elt.label = f"[orange]➜[/orange] Skipped {curr_txt.lower().replace('...', '')}"  # noqa
+
+        self.console.print(self.current_render)
+        self.stop_live()
+        return None
 
     def log_output(self,
         agent_img_name: str,

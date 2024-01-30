@@ -253,29 +253,33 @@ class Ecr(BaseRegistry):
 
         # Push the Docker image to ECR
         self.output_mgr.step_starting("[dodger_blue2]Pushing image[/dodger_blue2]")
-        for line in docker_client.images.push(
-            ecr_image,
-            tag=image_tag,
-            stream=True,
-            decode=True,
-            auth_config={'username': username, 'password': password}
-        ):
-            # Construct the message
-            msg = []
-            if "status" in line.keys():
-                msg.append(line["status"])
-            if "progress" in line.keys():
-                msg.append(line["progress"])
-            if "error" in line.keys():
-                raise ValueError(line["error"])
-            if " ".join(msg) != "":
-                log = " ".join(msg)
-                self.output_mgr.log_output(
-                    agent_img_name=image_name,
-                    stage=alto.ui.StageEnum.IMAGE_PUSH,
-                    level="info",
-                    msg=log,
-                )
+        try:
+            for line in docker_client.images.push(
+                ecr_image,
+                tag=image_tag,
+                stream=True,
+                decode=True,
+                auth_config={'username': username, 'password': password}
+            ):
+                # Construct the message
+                msg = []
+                if "status" in line.keys():
+                    msg.append(line["status"])
+                if "progress" in line.keys():
+                    msg.append(line["progress"])
+                if "error" in line.keys():
+                    raise ValueError(line["error"])
+                if " ".join(msg) != "":
+                    log = " ".join(msg)
+                    self.output_mgr.log_output(
+                        agent_img_name=image_name,
+                        stage=alto.ui.StageEnum.IMAGE_PUSH,
+                        level="info",
+                        msg=log,
+                    )
+        except Exception as e:
+            self.output_mgr.step_failed()
+            raise e
         self.output_mgr.step_completed("Pushed image!")
 
 
@@ -330,27 +334,31 @@ class Dockerhub(BaseRegistry):
 
         # Push the Docker image to ECR
         self.output_mgr.step_starting("[dodger_blue2]Pushing image[/dodger_blue2]")
-        for line in docker_client.images.push(
-            dockerhub_image,
-            tag=image_tag,
-            stream=True,
-            decode=True,
-        ):
-            # Construct the message
-            msg = []
-            if "status" in line.keys():
-                msg.append(line["status"])
-            if "progress" in line.keys():
-                msg.append(line["progress"])
-            if "error" in line.keys():
-                raise ValueError(line["error"])
-            if " ".join(msg) != "":
-                log = " ".join(msg)
-                self.output_mgr.log_output(
-                    agent_img_name=image_name,
-                    stage=alto.ui.StageEnum.IMAGE_PUSH,
-                    level="info",
-                    msg=log,
-                )
+        try:
+            for line in docker_client.images.push(
+                dockerhub_image,
+                tag=image_tag,
+                stream=True,
+                decode=True,
+            ):
+                # Construct the message
+                msg = []
+                if "status" in line.keys():
+                    msg.append(line["status"])
+                if "progress" in line.keys():
+                    msg.append(line["progress"])
+                if "error" in line.keys():
+                    raise ValueError(line["error"])
+                if " ".join(msg) != "":
+                    log = " ".join(msg)
+                    self.output_mgr.log_output(
+                        agent_img_name=image_name,
+                        stage=alto.ui.StageEnum.IMAGE_PUSH,
+                        level="info",
+                        msg=log,
+                    )
+        except Exception as e:
+            self.output_mgr.step_failed()
+            raise e
         self.output_mgr.step_completed("Pushed image!")
         self.output_mgr.stop_live()

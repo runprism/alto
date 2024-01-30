@@ -365,8 +365,6 @@ class Docker(BaseImage, ConfigMixin):
                         level="info",
                         msg=log,
                     )
-        self.output_mgr.step_completed("Built image!")
-        self.output_mgr.stop_live()
 
         # Remove the old image
         if self.image_version is not None:
@@ -386,9 +384,16 @@ class Docker(BaseImage, ConfigMixin):
         self.image_version = new_img_version
 
         # If nothing has gone wrong, then we should be able to get the image
-        _ = client.images.get(
-            name=f"{self.image_name}:{new_img_version}",
-        )
+        try:
+            _ = client.images.get(
+                name=f"{self.image_name}:{new_img_version}",
+            )
+        except Exception as e:
+            self.output_mgr.step_failed()
+            raise e
+
+        self.output_mgr.step_completed("Built image!")
+        self.output_mgr.stop_live()
 
         # Push the image
         self.registry.push(

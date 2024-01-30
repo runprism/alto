@@ -950,6 +950,10 @@ class Ec2(Agent):
                     level="info",
                     msg=f"Deleting {rs_name} `{rs_id}`"
                 )
+
+            # Close the live
+            self.output_mgr.step_failed()
+
             raise e
 
     def get_all_local_paths(self,
@@ -1238,21 +1242,22 @@ class Ec2(Agent):
             # Open a subprocess and stream the logs
             self.output_mgr.step_starting("[dodger_blue2]Building agent...[/dodger_blue2]")  # noqa
             _, _, returncode = self._execute_apply_script(cmd)
-            self.output_mgr.step_completed("Built agent!", is_substep=False)
 
             # Otherwise, if the return code is non-zero, then an error occurred. Delete
             # all of the resources so that the user can try again.
             if returncode != 0:
+                self.output_mgr.step_failed()
                 self.delete()
+            else:
+                self.output_mgr.step_completed("Built agent!", is_substep=False)
 
-            # Return the returncode. Return a dictionary in order to avoid confusing
-            # this output with the output of an event manager.
+            # Return the returncode.
             self.output_mgr.stop_live()
             return returncode
 
         # If we encounter any sort of error, delete the resources first and then raise
         except Exception as e:
-            self.output_mgr.stop_live()
+            self.output_mgr.step_failed()
             self.delete()
             raise e
 
@@ -1317,7 +1322,10 @@ class Ec2(Agent):
             )
 
         # Return the returncode.
-        self.output_mgr.step_completed("App completed!")
+        if returncode != 0:
+            self.output_mgr.step_failed()
+        else:
+            self.output_mgr.step_completed("App completed!")
         return returncode
 
     def delete(self, overrides={}):
@@ -1363,6 +1371,9 @@ class Ec2(Agent):
             )
             log_key_pair = f"{alto.ui.MAGENTA}{self.key_name}{alto.ui.RESET}"
             log_key_path = f"{alto.ui.MAGENTA}{str(self.pem_key_path)}{alto.ui.RESET}"  # noqa: E501
+            self.ec2_client.delete_key_pair(
+                KeyName=self.key_name
+            )
             self.output_mgr.log_output(
                 agent_img_name=self.instance_name,
                 stage=StageEnum.AGENT_DELETE,
@@ -1372,9 +1383,6 @@ class Ec2(Agent):
                 is_step_completion=True,
                 is_substep=True,
                 symbol="[red]✕[/red]",
-            )
-            self.ec2_client.delete_key_pair(
-                KeyName=self.key_name
             )
             try:
                 os.unlink(str(self.pem_key_path))
@@ -1403,6 +1411,9 @@ class Ec2(Agent):
                 is_substep=True
             )
             log_instance_id = f"{alto.ui.MAGENTA}{self.instance_id}{alto.ui.RESET}"  # noqa: E501
+            _ = self.ec2_client.terminate_instances(
+                InstanceIds=[self.instance_id]
+            )
             self.output_mgr.log_output(
                 agent_img_name=self.instance_name,
                 stage=StageEnum.AGENT_DELETE,
@@ -1412,9 +1423,6 @@ class Ec2(Agent):
                 is_step_completion=True,
                 is_substep=True,
                 symbol="[red]✕[/red]",
-            )
-            _ = self.ec2_client.terminate_instances(
-                InstanceIds=[self.instance_id]
             )
 
         # Security group
