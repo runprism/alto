@@ -21,6 +21,7 @@ from alto.utils import (
 import alto.ui
 from alto.images.registries import MetaRegistry, BaseRegistry
 from alto.entrypoints import BaseEntrypoint, Jupyter
+from alto.output import OutputManager
 
 
 # Logger
@@ -50,10 +51,12 @@ class BaseImage(metaclass=MetaImage):
         alto_wkdir: Path,
         image_name: str,
         image_conf: Dict[str, Any],
+        output_mgr: OutputManager,
     ):
         self.alto_wkdir = alto_wkdir
         self.image_name = image_name
         self.image_conf = image_conf
+        self.output_mgr = output_mgr
 
         # Check configuration
         self.check_conf()
@@ -91,6 +94,7 @@ class BaseImage(metaclass=MetaImage):
         self.registry: BaseRegistry = MetaRegistry.get_registry(registry)(
             image_conf=self.image_conf,
             alto_wkdir=self.alto_wkdir,
+            output_mgr=self.output_mgr,
         )
 
     def parse_image_build_cmds(self,

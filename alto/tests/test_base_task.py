@@ -19,6 +19,7 @@ def _create_task(path: Path):
     args = argparse.Namespace()
     args.file = str(path)
     args.log_level = 'info'
+    args.verbose = True
     args.wkdir = str(CONFs)
     task = BaseTask(args)
 

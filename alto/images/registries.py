@@ -24,16 +24,12 @@ from alto.utils import (
     _check_optional_key_in_conf,
 )
 import alto.ui
-from alto.divider import Divider
+from alto.output import OutputManager
 
 
 # Logger
 import logging
 logger = logging.getLogger(DEFAULT_LOGGER_NAME)
-
-
-# Dividers
-PUSH_DIVIDER = Divider("push")
 
 
 # Metaclass
@@ -57,9 +53,11 @@ class BaseRegistry(metaclass=MetaRegistry):
     def __init__(self,
         image_conf: Dict[str, Any],
         alto_wkdir: Path,
+        output_mgr: OutputManager,
     ):
         self.image_conf = image_conf
         self.alto_wkdir = alto_wkdir
+        self.output_mgr = output_mgr
 
         # Check configuration
         self.check_conf()
@@ -134,8 +132,9 @@ class Ecr(BaseRegistry):
     def __init__(self,
         image_conf: Dict[str, Any],
         alto_wkdir: Path,
+        output_mgr: OutputManager,
     ):
-        super().__init__(image_conf, alto_wkdir)
+        super().__init__(image_conf, alto_wkdir, output_mgr)
 
         # Region
         my_session = boto3.session.Session()
@@ -192,21 +191,39 @@ class Ecr(BaseRegistry):
             True if the repository was created successfully, False otherwise.
         """
         ecr_client = boto3.client('ecr', region_name=region)
-        log_prefix = f"{alto.ui.AGENT_EVENT}{repository_name}{alto.ui.IMAGE_PUSH_EVENT}{PUSH_DIVIDER.__str__()}{alto.ui.RESET}|"  # noqa: E501
-
         try:
             # Create ECR repository
             _ = ecr_client.create_repository(repositoryName=repository_name)
-            logger.info(f"{log_prefix} ECR repository '{repository_name}' created successfully.")  # noqa
+            self.output_mgr.log_output(
+                agent_img_name=repository_name,
+                stage=alto.ui.StageEnum.IMAGE_PUSH,
+                level="info",
+                msg=f"ECR repository '{repository_name}' created successfully.",
+            )
             return True
         except ecr_client.exceptions.RepositoryAlreadyExistsException:
-            logger.info(f"{log_prefix} ECR repository '{repository_name}' already exists.")  # noqa
+            self.output_mgr.log_output(
+                agent_img_name=repository_name,
+                stage=alto.ui.StageEnum.IMAGE_PUSH,
+                level="info",
+                msg=f"ECR repository '{repository_name}' already exists.",
+            )
             return True
         except NoCredentialsError:
-            logger.error(f"{log_prefix} Credentials not available. Unable to create ECR repository.")  # noqa
+            self.output_mgr.log_output(
+                agent_img_name=repository_name,
+                stage=alto.ui.StageEnum.IMAGE_PUSH,
+                level="error",
+                msg="Credentials not available. Unable to create ECR repository.",
+            )
             return False
         except Exception as e:
-            logger.error(f"{log_prefix} Error creating ECR repository: {e}")
+            self.output_mgr.log_output(
+                agent_img_name=repository_name,
+                stage=alto.ui.StageEnum.IMAGE_PUSH,
+                level="error",
+                msg=f"Error creating ECR repository: {e}",
+            )
             return False
 
     def push(self,
@@ -234,30 +251,36 @@ class Ecr(BaseRegistry):
 
         docker_client.login(username, password, registry=self.image_conf["registry"])
 
-        # Log prefix
-        log_prefix = f"{alto.ui.AGENT_EVENT}{image_name}{alto.ui.IMAGE_PUSH_EVENT}{PUSH_DIVIDER.__str__()}{alto.ui.RESET}|"  # noqa
-
         # Push the Docker image to ECR
-        for line in docker_client.images.push(
-            ecr_image,
-            tag=image_tag,
-            stream=True,
-            decode=True,
-            auth_config={'username': username, 'password': password}
-        ):
-            # Construct the message
-            msg = []
-            if "status" in line.keys():
-                msg.append(line["status"])
-            if "progress" in line.keys():
-                msg.append(line["progress"])
-            if "error" in line.keys():
-                raise ValueError(line["error"])
-            if " ".join(msg) != "":
-                log = " ".join(msg)
-                logger.info(
-                    f"{log_prefix} {log}"  # noqa: E501
-                )
+        self.output_mgr.step_starting("[dodger_blue2]Pushing image[/dodger_blue2]")
+        try:
+            for line in docker_client.images.push(
+                ecr_image,
+                tag=image_tag,
+                stream=True,
+                decode=True,
+                auth_config={'username': username, 'password': password}
+            ):
+                # Construct the message
+                msg = []
+                if "status" in line.keys():
+                    msg.append(line["status"])
+                if "progress" in line.keys():
+                    msg.append(line["progress"])
+                if "error" in line.keys():
+                    raise ValueError(line["error"])
+                if " ".join(msg) != "":
+                    log = " ".join(msg)
+                    self.output_mgr.log_output(
+                        agent_img_name=image_name,
+                        stage=alto.ui.StageEnum.IMAGE_PUSH,
+                        level="info",
+                        msg=log,
+                    )
+        except Exception as e:
+            self.output_mgr.step_failed()
+            raise e
+        self.output_mgr.step_completed("Pushed image!")
 
 
 class Dockerhub(BaseRegistry):
@@ -309,26 +332,33 @@ class Dockerhub(BaseRegistry):
         )
         image.tag(dockerhub_image, tag=image_tag)
 
-        # Log prefix
-        log_prefix = f"{alto.ui.AGENT_EVENT}{image_name}{alto.ui.IMAGE_PUSH_EVENT}{PUSH_DIVIDER.__str__()}{alto.ui.RESET}|"  # noqa
-
         # Push the Docker image to ECR
-        for line in docker_client.images.push(
-            dockerhub_image,
-            tag=image_tag,
-            stream=True,
-            decode=True,
-        ):
-            # Construct the message
-            msg = []
-            if "status" in line.keys():
-                msg.append(line["status"])
-            if "progress" in line.keys():
-                msg.append(line["progress"])
-            if "error" in line.keys():
-                raise ValueError(line["error"])
-            if " ".join(msg) != "":
-                log = " ".join(msg)
-                logger.info(
-                    f"{log_prefix} {log}"  # noqa: E501
-                )
+        self.output_mgr.step_starting("[dodger_blue2]Pushing image[/dodger_blue2]")
+        try:
+            for line in docker_client.images.push(
+                dockerhub_image,
+                tag=image_tag,
+                stream=True,
+                decode=True,
+            ):
+                # Construct the message
+                msg = []
+                if "status" in line.keys():
+                    msg.append(line["status"])
+                if "progress" in line.keys():
+                    msg.append(line["progress"])
+                if "error" in line.keys():
+                    raise ValueError(line["error"])
+                if " ".join(msg) != "":
+                    log = " ".join(msg)
+                    self.output_mgr.log_output(
+                        agent_img_name=image_name,
+                        stage=alto.ui.StageEnum.IMAGE_PUSH,
+                        level="info",
+                        msg=log,
+                    )
+        except Exception as e:
+            self.output_mgr.step_failed()
+            raise e
+        self.output_mgr.step_completed("Pushed image!")
+        self.output_mgr.stop_live()

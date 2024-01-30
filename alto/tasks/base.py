@@ -38,6 +38,7 @@ from alto.images import (  # noqa
     MetaImage,
     BaseImage,
 )
+from alto.output import OutputManager
 
 
 # Class definition
@@ -74,6 +75,9 @@ class BaseTask:
 
         # Set up logger
         set_up_logger(self.args.log_level)
+
+        # Output manager
+        self.output_mgr: OutputManager = OutputManager(self.args)
 
     def check(self):
         """
@@ -239,6 +243,7 @@ class BaseTask:
                 alto_wkdir=self.alto_wkdir,
                 image_name=self.name,
                 image_conf=image,
+                output_mgr=self.output_mgr,
             )
 
         else:

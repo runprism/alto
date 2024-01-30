@@ -24,7 +24,6 @@ from alto.config import ConfigMixin
 from alto.constants import (
     DEFAULT_LOGGER_NAME,
 )
-from alto.divider import Divider
 import alto.ui
 from alto.agents.scripts import SCRIPTS_DIR
 from alto.utils import (
@@ -32,6 +31,7 @@ from alto.utils import (
     ConfigurationKey,
     _check_optional_key_in_conf
 )
+from alto.output import OutputManager
 
 
 ##########
@@ -40,10 +40,6 @@ from alto.utils import (
 
 import logging
 logger = logging.getLogger(DEFAULT_LOGGER_NAME)
-
-# Dividers
-IMAGE_DIVIDER = Divider("image")
-DELETE_DIVIDER = Divider("delete")
 
 
 #################
@@ -71,9 +67,10 @@ class Docker(BaseImage, ConfigMixin):
         alto_wkdir: Path,
         image_name: str,
         image_conf: Dict[str, Any],
+        output_mgr: OutputManager
     ):
         BaseImage.__init__(
-            self, alto_wkdir, image_name, image_conf,
+            self, alto_wkdir, image_name, image_conf, output_mgr
         )
 
         # Image name, version
@@ -272,9 +269,6 @@ class Docker(BaseImage, ConfigMixin):
         else:
             new_img_version = str(round(float(self.image_version) + 0.1, 1))
 
-        # Log prefix
-        log_prefix = f"{alto.ui.AGENT_EVENT}{self.image_name}{alto.ui.IMAGE_EVENT}{IMAGE_DIVIDER.__str__()}{alto.ui.RESET}|"  # noqa
-
         # If the context is not specified, then the base image must be specified. Build
         # the Dockerfile from the configuration YAML.
         if context == "":
@@ -347,6 +341,7 @@ class Docker(BaseImage, ConfigMixin):
             dockerfile_path = Path(context) / "Dockerfile"
 
         # Create image
+        self.output_mgr.step_starting("[dodger_blue2]Building image[/dodger_blue2]")
         resp = self.build_client.build(
             path=str(dockerfile_path.parent),
             tag=f"{self.image_name}:{new_img_version}",
@@ -364,7 +359,12 @@ class Docker(BaseImage, ConfigMixin):
                     )["stream"]
                     if len(re.findall(r'^\s*$', log)) > 0:
                         continue
-                    logger.info(f"{log_prefix} {log}")
+                    self.output_mgr.log_output(
+                        agent_img_name=self.image_name,
+                        stage=alto.ui.StageEnum.IMAGE_BUILD,
+                        level="info",
+                        msg=log,
+                    )
 
         # Remove the old image
         if self.image_version is not None:
@@ -384,9 +384,16 @@ class Docker(BaseImage, ConfigMixin):
         self.image_version = new_img_version
 
         # If nothing has gone wrong, then we should be able to get the image
-        _ = client.images.get(
-            name=f"{self.image_name}:{new_img_version}",
-        )
+        try:
+            _ = client.images.get(
+                name=f"{self.image_name}:{new_img_version}",
+            )
+        except Exception as e:
+            self.output_mgr.step_failed()
+            raise e
+
+        self.output_mgr.step_completed("Built image!")
+        self.output_mgr.stop_live()
 
         # Push the image
         self.registry.push(
@@ -399,7 +406,7 @@ class Docker(BaseImage, ConfigMixin):
         """
         Delete the Docker agent
         """
-        log_prefix = f"{alto.ui.AGENT_EVENT}{self.image_name}{alto.ui.RED}{DELETE_DIVIDER.__str__()}{alto.ui.RESET}|"  # noqa: E501
+        self.output_mgr.step_starting("[dodger_blue2]Deleting image[/dodger_blue2]")
 
         # Remove all images with the label "stage=intermediate"
         images = client.images.list(
@@ -414,10 +421,14 @@ class Docker(BaseImage, ConfigMixin):
                                 image=curr_tag,
                                 force=True,
                             )
-                            logger.info(
-                                f"{log_prefix} Deleting image {alto.ui.MAGENTA}{curr_tag}{alto.ui.RESET}"  # noqa: E501
+                            self.output_mgr.log_output(
+                                agent_img_name=self.image_name,
+                                stage=alto.ui.StageEnum.AGENT_DELETE,
+                                level="info",
+                                msg=f"Deleting image {alto.ui.MAGENTA}{curr_tag}{alto.ui.RESET}",  # noqa
                             )
 
                         # Just in case...
                         except requests.exceptions.HTTPError:
                             continue
+        self.output_mgr.step_completed("Deleted image!")

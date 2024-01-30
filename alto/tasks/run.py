@@ -35,6 +35,7 @@ class RunTask(BaseTask):
             infra=self.infra,
             entrypoint=self.entrypoint,
             image=self.image,
+            output_mgr=self.output_mgr,
         )
         returncode = agent.run()
         if returncode != 0:

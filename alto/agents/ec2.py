@@ -18,7 +18,8 @@ from alto.entrypoints import BaseEntrypoint
 from alto.infras import BaseInfra
 from alto.command import AgentCommand
 from alto.images import BaseImage
-from alto.divider import Divider
+from alto.output import OutputManager
+from alto.ui import StageEnum
 
 # Standard library imports
 import argparse
@@ -42,11 +43,6 @@ import stat
 
 import logging
 logger = logging.getLogger(DEFAULT_LOGGER_NAME)
-
-# Dividers
-BUILD_DIVIDER = Divider("build")
-RUN_DIVIDER = Divider("run")
-DELETE_DIVIDER = Divider("delete")
 
 
 ####################
@@ -77,10 +73,11 @@ class Ec2(Agent):
         infra: BaseInfra,
         entrypoint: BaseEntrypoint,
         image: Optional[BaseImage],
+        output_mgr: OutputManager,
         mode: str = "prod"
     ):
         Agent.__init__(
-            self, args, alto_wkdir, agent_name, agent_conf, infra, entrypoint, image, mode  # noqa
+            self, args, alto_wkdir, agent_name, agent_conf, infra, entrypoint, image, output_mgr, mode  # noqa
         )
 
         # Bash dir
@@ -280,7 +277,14 @@ class Ec2(Agent):
             with open(json_path, 'r') as f:
                 json_data = json.loads(f.read())
             f.close()
-            json_data = json_data[self.instance_name]
+
+            try:
+                json_data = json_data[self.instance_name]
+            except KeyError:
+                json_data = {
+                    "resources": {},
+                    "files": {},
+                }
 
             # Resources and files
             resources = json_data["resources"]
@@ -709,15 +713,11 @@ class Ec2(Agent):
         """
         # Wrap the whole thing in a single try-except block
         try:
-
             # Data to write
             data = {}
 
             # Check resources
             resources = self.check_resources(ec2_client, instance_name, instance_id)
-
-            # Log prefix
-            log_prefix = f"{alto.ui.AGENT_EVENT}{instance_name}{alto.ui.AGENT_WHICH_BUILD}{BUILD_DIVIDER.__str__()}{alto.ui.RESET}|"  # noqa: E501
 
             def _create_exception(resource):
                 return ValueError('\n'.join([
@@ -728,14 +728,24 @@ class Ec2(Agent):
                 ]))
 
             # Create PEM key pair
+            self.output_mgr.step_starting(
+                "Creating key pair",
+                is_substep=True
+            )
             if resources["key_pair"] is None:
                 pem_key_path = self.create_key_pair(
                     ec2_client,
                     key_name=instance_name,
                 )
                 log_instance_name = f"{alto.ui.MAGENTA}{instance_name}{alto.ui.RESET}"  # noqa: E501
-                logger.info(
-                    f"{log_prefix} Created key pair {log_instance_name}"
+                self.output_mgr.log_output(
+                    agent_img_name=instance_name,
+                    stage=StageEnum.AGENT_BUILD,
+                    level="info",
+                    msg=f"Created key pair {log_instance_name}",
+                    renderable_type="Created key-pair",
+                    is_step_completion=True,
+                    is_substep=True
                 )
 
                 # Write the data to the JSON
@@ -757,11 +767,21 @@ class Ec2(Agent):
                 # Log
                 log_instance_name = f"{alto.ui.MAGENTA}{instance_name}{alto.ui.RESET}"  # noqa: E501
                 log_instance_path = f"{alto.ui.MAGENTA}{str(pem_key_path)}{alto.ui.RESET}"  # noqa: E501
-                logger.info(
-                    f"{log_prefix} Using existing key-pair {log_instance_name} at {log_instance_path}"  # noqa: E501
+                self.output_mgr.log_output(
+                    agent_img_name=instance_name,
+                    stage=StageEnum.AGENT_BUILD,
+                    level="info",
+                    msg=f"Using existing key-pair {log_instance_name} at {log_instance_path}",  # noqa
+                    renderable_type="Using existing key-pair",
+                    is_step_completion=True,
+                    is_substep=True
                 )
 
             # Security group
+            self.output_mgr.step_starting(
+                "Creating security group",
+                is_substep=True
+            )
             if resources["security_group"] is None:
                 security_group_id, vpc_id = self.create_new_security_group(
                     ec2_client,
@@ -771,8 +791,14 @@ class Ec2(Agent):
                 # Log
                 log_security_group_id = f"{alto.ui.MAGENTA}{security_group_id}{alto.ui.RESET}"  # noqa: E501
                 log_vpc_id = f"{alto.ui.MAGENTA}{vpc_id}{alto.ui.RESET}"  # noqa: E501
-                logger.info(
-                    f"{log_prefix} Created security group with ID {log_security_group_id} in VPC {log_vpc_id}"  # noqa: E501
+                self.output_mgr.log_output(
+                    agent_img_name=instance_name,
+                    stage=StageEnum.AGENT_BUILD,
+                    level="info",
+                    msg=f"Created security group with ID {log_security_group_id} in VPC {log_vpc_id}",  # noqa: E501
+                    renderable_type="Created security group",
+                    is_step_completion=True,
+                    is_substep=True
                 )
 
                 # Write the data to the JSON
@@ -788,14 +814,24 @@ class Ec2(Agent):
                 security_group_id = self.security_group_id
                 self.check_ingress_ip(ec2_client, security_group_id)
                 log_security_group_id = f"{alto.ui.MAGENTA}{security_group_id}{alto.ui.RESET}"  # noqa: E501
-                logger.info(
-                    f"{log_prefix} Using existing security group {log_security_group_id}"  # noqa: E501
+                self.output_mgr.log_output(
+                    agent_img_name=instance_name,
+                    stage=StageEnum.AGENT_BUILD,
+                    level="info",
+                    msg=f"Using existing security group {log_security_group_id}",  # noqa: E501
+                    renderable_type="Using existing security group",
+                    is_step_completion=True,
+                    is_substep=True
                 )
 
             # Log instance ID template
             log_instance_id_template = f"{alto.ui.MAGENTA}{{instance_id}}{alto.ui.RESET}"  # noqa: E501
 
             # Instance
+            self.output_mgr.step_starting(
+                "Creating EC2 instance",
+                is_substep=True
+            )
             if resources["instance"] is None:
                 instance = ec2_resource.create_instances(
                     InstanceType=instance_type,
@@ -821,8 +857,14 @@ class Ec2(Agent):
                 instance_id = instance[0].id
 
                 # Log
-                logger.info(
-                    f"{log_prefix} Created EC2 instance with ID {log_instance_id_template.format(instance_id=instance_id)}"  # noqa: E501
+                self.output_mgr.log_output(
+                    agent_img_name=instance_name,
+                    stage=StageEnum.AGENT_BUILD,
+                    level="info",
+                    msg=f"Created EC2 instance with ID {log_instance_id_template.format(instance_id=instance_id)}",  # noqa: E501
+                    renderable_type="Created EC2 instance",
+                    is_step_completion=True,
+                    is_substep=True
                 )
                 time.sleep(1)
             else:
@@ -831,8 +873,14 @@ class Ec2(Agent):
                 instance_id = self.instance_id
 
                 # Log
-                logger.info(
-                    f"{log_prefix} Using existing EC2 instance with ID {log_instance_id_template.format(instance_id=instance_id)}"  # noqa: E501
+                self.output_mgr.log_output(
+                    agent_img_name=instance_name,
+                    stage=StageEnum.AGENT_BUILD,
+                    level="info",
+                    msg=f"Using existing EC2 instance with ID {log_instance_id_template.format(instance_id=instance_id)}",  # noqa: E501
+                    renderable_type="Using existing EC2 instance",
+                    is_step_completion=True,
+                    is_substep=True
                 )
 
             # Instance data
@@ -852,8 +900,11 @@ class Ec2(Agent):
 
                     # Log
                     log_pending_status = f"{alto.ui.YELLOW}pending{alto.ui.RESET}"  # noqa: E501
-                    logger.info(
-                        f"{log_prefix} Instance {log_instance_id_template.format(instance_id=instance_id)} is {log_pending_status}... checking again in 5 seconds"  # noqa: E501
+                    self.output_mgr.log_output(
+                        agent_img_name=instance_name,
+                        stage=StageEnum.AGENT_BUILD,
+                        level="info",
+                        msg=f"Instance {log_instance_id_template.format(instance_id=instance_id)} is {log_pending_status}... checking again in 5 seconds"  # noqa: E501
                     )
                     resp = self.check_instance_data(instance_id)
                     time.sleep(5)
@@ -892,11 +943,17 @@ class Ec2(Agent):
             deleted_resources = self.delete_resources_in_json()
 
             # Log the deleted resources
-            log_prefix = f"{alto.ui.AGENT_EVENT}{self.instance_name}{alto.ui.RED}{DELETE_DIVIDER.__str__()}{alto.ui.RESET}|"  # noqa: E501
             for rs_name, rs_id in deleted_resources.items():
-                logger.info(
-                    f"{log_prefix} Deleting {rs_name} `{rs_id}`"
+                self.output_mgr.log_output(
+                    agent_img_name=self.instance_name,
+                    stage=StageEnum.AGENT_DELETE,
+                    level="info",
+                    msg=f"Deleting {rs_name} `{rs_id}`"
                 )
+
+            # Close the live
+            self.output_mgr.step_failed()
+
             raise e
 
     def get_all_local_paths(self,
@@ -925,31 +982,34 @@ class Ec2(Agent):
         return [str(alto_wkdir)] + additional_paths
 
     def _log_output(self,
-        color: str,
-        which: str,
-        output: Any,
+        output,
+        stage: StageEnum
     ):
-        if which == "run":
-            divider = RUN_DIVIDER
-        elif which == "build":
-            divider = BUILD_DIVIDER
-        log_prefix = f"{alto.ui.AGENT_EVENT}{self.instance_name}{color}{divider.__str__()}{alto.ui.RESET}|"  # noqa
         if output:
             if isinstance(output, str):
                 if not re.findall(r"^[\-]+$", output.rstrip()):
-                    logger.info(
-                        f"{log_prefix} {output.rstrip()}"  # noqa: E501
+                    self.output_mgr.log_output(
+                        agent_img_name=self.instance_name,
+                        stage=stage,
+                        level="info",
+                        msg=output.rstrip(),
+                        renderable_type=f"[dodger_blue2]{output.rstrip()}[/dodger_blue2]" if stage == StageEnum.AGENT_RUN else None,  # noqa
+                        is_step_completion=False,
                     )
             else:
                 if not re.findall(r"^[\-]+$", output.decode().rstrip()):
-                    logger.info(
-                        f"{log_prefix} {output.decode().rstrip()}"  # noqa: E501
+                    self.output_mgr.log_output(
+                        agent_img_name=self.instance_name,
+                        stage=stage,
+                        level="info",
+                        msg=output.decode().rstrip(),
+                        renderable_type=f"[dodger_blue2]{output.decode().rstrip()}[/dodger_blue2]" if stage == StageEnum.AGENT_RUN else None,  # noqa
+                        is_step_completion=False,
                     )
 
     def stream_logs(self,
         cmd: List[str],
-        color: str,
-        which: str
+        stage: StageEnum,
     ):
         """
         Stream Bash script logs. We use bash scripts to run our `apply` and `run`
@@ -957,6 +1017,7 @@ class Ec2(Agent):
 
         args:
             cmd: subprocess command
+            stage: build stage
             color: color to use in log styling
             which: one of `build` or `run`
         returns:
@@ -967,25 +1028,17 @@ class Ec2(Agent):
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            shell=False,
-            universal_newlines=True,
+            text=True
         )
         while True:
-            # For whatever reason, the `prism` command places the log in stderr, not
-            # stdout
-            if which == "build":
-                output = process.stdout.readline()  # type: ignore
-                stderr = process.stderr.readline()  # type: ignore
-            else:
-                output = process.stderr.readline()  # type: ignore
-                stderr = None
+            output = process.stdout
+            if output is not None:
+                output = output.readline()  # type: ignore
 
             # Stream the logs
             if process.poll() is not None:
                 break
-            self._log_output(color, which, output)
-            if stderr:
-                self._log_output(color, which, stderr)
+            self._log_output(output, stage)
 
         return process.stdout, process.stderr, process.returncode
 
@@ -1035,6 +1088,60 @@ class Ec2(Agent):
             }
             self.run_command.set_additional_optargs(additional_optargs)
 
+    def _execute_apply_script(self,
+        cmd: List[str]
+    ):
+        # Open a subprocess and stream the logs
+        out, err, returncode = self.stream_logs(cmd, StageEnum.AGENT_BUILD)
+
+        # Log anything from stderr that was printed in the project
+        for line in err.readlines():
+            self.output_mgr.log_output(
+                agent_img_name=self.instance_name,
+                stage=StageEnum.AGENT_BUILD,
+                level="info",
+                msg=line.rstrip()
+            )
+
+        # A return code of 8 indicates that the SSH connection timed out. Try
+        # whitelisting the current IP and try again.
+        if returncode == 8:
+            # For mypy
+            if self.security_group_id is None:
+                raise ValueError("`security_group_id` is still None!")
+            self.output_mgr.log_output(
+                agent_img_name=self.instance_name,
+                stage=StageEnum.AGENT_BUILD,
+                level="info",
+                msg="SSH connection timed out...checking security group ingress rules and trying again"  # noqa: E501
+            )
+
+            # Add the current IP to the security ingress rules
+            added_ip = self.check_ingress_ip(
+                self.ec2_client, self.security_group_id
+            )
+
+            # If the current IP address is already whitelisted, then just add
+            # 0.0.0.0/0 to the ingress rules.
+            if added_ip is None:
+                self.args.whitelist_all = True
+                self.output_mgr.log_output(
+                    agent_img_name=self.instance_name,
+                    stage=StageEnum.AGENT_BUILD,
+                    level="info",
+                    msg="Current IP address already whitelisted...whitelisting 0.0.0.0/0"  # noqa: E501
+                )
+                self.add_ingress_rule(
+                    self.ec2_client,
+                    self.security_group_id,
+                    "0.0.0.0",
+                )
+
+            # Try again
+            out, err, returncode = self.stream_logs(cmd, StageEnum.AGENT_BUILD)
+
+        return out, err, returncode
+
     def apply(self, overrides={}):
         """
         Create the EC2 instance image
@@ -1048,9 +1155,6 @@ class Ec2(Agent):
                 build_kwargs={"platform": "linux/amd64"},
             )
 
-        # Logging prefix
-        log_prefix = f"{alto.ui.AGENT_EVENT}{self.instance_name}{alto.ui.AGENT_WHICH_BUILD}{BUILD_DIVIDER.__str__()}{alto.ui.RESET}|"  # noqa: E501
-
         # Infra
         instance_type = self.parse_infra_key(self.infra.infra_conf, "instance_type")
         ami_image = self.parse_infra_key(self.infra.infra_conf, "ami_image")
@@ -1059,8 +1163,11 @@ class Ec2(Agent):
         # If the user is using an image, then ignore the Python version
         if self.image is not None:
             if python_version != "":
-                logger.info(
-                    f"{log_prefix} Ignoring Python version in favor of newly built image"  # noqa
+                self.output_mgr.log_output(
+                    agent_img_name=self.instance_name,
+                    stage=StageEnum.AGENT_BUILD,
+                    level="info",
+                    msg="Ignoring Python version in favor of newly built image"
                 )
 
         # requirements.txt path
@@ -1090,7 +1197,9 @@ class Ec2(Agent):
         project_dir = all_local_paths.pop(0)
         all_local_paths_cli = ",".join(all_local_paths)
 
-        # Create the instance
+        # Create the instance. If we're not streaming all logs, then indicate to the
+        # user that we're building resources
+        self.output_mgr.step_starting("[dodger_blue2]Building resources...[/dodger_blue2]")  # noqa
         data = self.create_instance(
             self.ec2_client,
             self.ec2_resource,
@@ -1099,6 +1208,7 @@ class Ec2(Agent):
             instance_type,
             ami_image,
         )
+        self.output_mgr.step_completed("Built resources!", is_substep=False)
 
         # The `create_instance` command is blocking — it won't finish until the instance
         # is up and running.
@@ -1130,60 +1240,24 @@ class Ec2(Agent):
             cmd = self.apply_command.process_cmd()
 
             # Open a subprocess and stream the logs
-            _, err, returncode = self.stream_logs(
-                cmd, alto.ui.AGENT_WHICH_BUILD, "build"
-            )
-
-            # Log anything from stderr that was printed in the project
-            for line in err.readlines():
-                logger.info(
-                    f"{log_prefix} {line.rstrip()}"  # noqa: E501
-                )
-
-            # A return code of 8 indicates that the SSH connection timed out. Try
-            # whitelisting the current IP and try again.
-            if returncode == 8:
-                # For mypy
-                if self.security_group_id is None:
-                    raise ValueError("`security_group_id` is still None!")
-                logger.info(
-                    f"{log_prefix} SSH connection timed out...checking security group ingress rules and trying again"  # noqa: E501
-                )
-
-                # Add the current IP to the security ingress rules
-                added_ip = self.check_ingress_ip(
-                    self.ec2_client, self.security_group_id
-                )
-
-                # If the current IP address is already whitelisted, then just add
-                # 0.0.0.0/0 to the ingress rules.
-                if added_ip is None:
-                    self.args.whitelist_all = True
-                    logger.info(
-                        f"{log_prefix} Current IP address already whitelisted...whitelisting 0.0.0.0/0"  # noqa: E501
-                    )
-                    self.add_ingress_rule(
-                        self.ec2_client,
-                        self.security_group_id,
-                        "0.0.0.0",
-                    )
-
-                # Try again
-                _, err, returncode = self.stream_logs(
-                    cmd, alto.ui.AGENT_WHICH_BUILD, "build"
-                )
+            self.output_mgr.step_starting("[dodger_blue2]Building agent...[/dodger_blue2]")  # noqa
+            _, _, returncode = self._execute_apply_script(cmd)
 
             # Otherwise, if the return code is non-zero, then an error occurred. Delete
             # all of the resources so that the user can try again.
             if returncode != 0:
+                self.output_mgr.step_failed()
                 self.delete()
+            else:
+                self.output_mgr.step_completed("Built agent!", is_substep=False)
 
-            # Return the returncode. Return a dictionary in order to avoid confusing
-            # this output with the output of an event manager.
+            # Return the returncode.
+            self.output_mgr.stop_live()
             return returncode
 
         # If we encounter any sort of error, delete the resources first and then raise
         except Exception as e:
+            self.output_mgr.step_failed()
             self.delete()
             raise e
 
@@ -1202,8 +1276,11 @@ class Ec2(Agent):
 
         # Logging styling
         if self.instance_name is None or self.instance_id is None:
-            logger.info(
-                "Agent data not found! Use `alto apply` to create your agent"
+            self.output_mgr.log_output(
+                agent_img_name=self.instance_name,
+                stage=StageEnum.AGENT_RUN,
+                level="error",
+                msg="Agent data not found! Use `alto apply` to create your agent",
             )
             return
 
@@ -1216,6 +1293,7 @@ class Ec2(Agent):
             raise ValueError("incompatible public DNS name!")
 
         # The agent data should exist...Build the shell command
+        self.output_mgr.step_starting("[dodger_blue2]Running entrypoint...[/dodger_blue2]")  # noqa
         self.run_command = AgentCommand(
             executable='/bin/bash',
             script=self.AGENT_RUN_SCRIPT,
@@ -1232,18 +1310,22 @@ class Ec2(Agent):
 
         # Process the command and execute
         cmd = self.run_command.process_cmd()
-        out, _, returncode = self.stream_logs(cmd, alto.ui.AGENT_WHICH_RUN, "run")
-
-        # Log prefix
-        log_prefix = f"{alto.ui.AGENT_EVENT}{self.instance_name}{alto.ui.AGENT_WHICH_RUN}{RUN_DIVIDER.__str__()}{alto.ui.RESET}|"  # noqa
+        out, _, returncode = self.stream_logs(cmd, StageEnum.AGENT_RUN)
 
         # Log anything from stdout that was printed in the project
         for line in out.readlines():
-            logger.info(
-                f"{log_prefix} {line.rstrip()}"  # noqa: E501
+            self.output_mgr.log_output(
+                agent_img_name=self.instance_name,
+                stage=StageEnum.AGENT_RUN,
+                level="info",
+                msg=line.rstrip(),
             )
 
         # Return the returncode.
+        if returncode != 0:
+            self.output_mgr.step_failed()
+        else:
+            self.output_mgr.step_completed("Entrypoint completed!")
         return returncode
 
     def delete(self, overrides={}):
@@ -1255,81 +1337,139 @@ class Ec2(Agent):
 
         In addition, remove the PEM key from our local files
         """
+
         # Delete the image, if it exists
         if self.image is not None:
             self.image.delete()
 
         # Logging styling
+        self.output_mgr.step_starting("[dodger_blue2]Deleting resources...[/dodger_blue2]")  # noqa
+
+        # Safety check. mypy thinks this statement is unreachable.
         if self.instance_name is None:
-            logger.info(  # type: ignore
-                "Agent data not found! Did you manually delete the ~/.alto/ec2.json file?"  # noqa: E501
+            self.output_mgr.log_output(  # type: ignore
+                agent_img_name=self.instance_name,
+                stage=StageEnum.AGENT_DELETE,
+                level="info",
+                msg="Agent data not found! Did you manually delete the ~/.alto/ec2.json file?"  # noqa: E501
             )
             return
 
-        # Logging styling
-        log_prefix = f"{alto.ui.AGENT_EVENT}{self.instance_name}{alto.ui.RED}{DELETE_DIVIDER.__str__()}{alto.ui.RESET}|"  # noqa: E501
-
         # Key pair
         if self.key_name is None:
-            logger.info(
-                f"{log_prefix} No agent data found!"
+            self.output_mgr.log_output(
+                agent_img_name=self.instance_name,
+                stage=StageEnum.AGENT_DELETE,
+                level="info",
+                msg="No agent data found!",
             )
+
         else:
+            self.output_mgr.step_starting(
+                "Deleting key-pair...",
+                is_substep=True
+            )
             log_key_pair = f"{alto.ui.MAGENTA}{self.key_name}{alto.ui.RESET}"
             log_key_path = f"{alto.ui.MAGENTA}{str(self.pem_key_path)}{alto.ui.RESET}"  # noqa: E501
-            logger.info(
-                f"{log_prefix} Deleting key-pair {log_key_pair} at {log_key_path}"
-            )
             self.ec2_client.delete_key_pair(
                 KeyName=self.key_name
+            )
+            self.output_mgr.log_output(
+                agent_img_name=self.instance_name,
+                stage=StageEnum.AGENT_DELETE,
+                level="info",
+                msg=f"Deleting key-pair {log_key_pair} at {log_key_path}",
+                renderable_type="Deleted key pair",
+                is_step_completion=True,
+                is_substep=True,
+                symbol="[red]✕[/red]",
             )
             try:
                 os.unlink(str(self.pem_key_path))
 
             # If this file never existed, then pass
             except FileNotFoundError:
-                logger.info(
-                    f"{log_prefix} Key-pair {log_key_pair} at {log_key_path} doesn't exist!"  # noqa: E501
+                self.output_mgr.log_output(
+                    agent_img_name=self.instance_name,
+                    stage=StageEnum.AGENT_DELETE,
+                    level="info",
+                    msg=f"Key-pair {log_key_pair} at {log_key_path} doesn't exist!",
                 )
 
         # Instance
         if self.instance_id is None:
-            logger.info(
-                f"{log_prefix} No instance found!"
+            self.output_mgr.log_output(
+                agent_img_name=self.instance_name,
+                stage=StageEnum.AGENT_DELETE,
+                level="info",
+                msg="No instance found!"
             )
+
         else:
-            log_instance_id = f"{alto.ui.MAGENTA}{self.instance_id}{alto.ui.RESET}"  # noqa: E501
-            logger.info(
-                f"{log_prefix} Deleting instance {log_instance_id}"
+            self.output_mgr.step_starting(
+                "Deleting instance...",
+                is_substep=True
             )
+            log_instance_id = f"{alto.ui.MAGENTA}{self.instance_id}{alto.ui.RESET}"  # noqa: E501
             _ = self.ec2_client.terminate_instances(
                 InstanceIds=[self.instance_id]
+            )
+            self.output_mgr.log_output(
+                agent_img_name=self.instance_name,
+                stage=StageEnum.AGENT_DELETE,
+                level="info",
+                msg=f"Deleting instance {log_instance_id}",
+                renderable_type="Deleted instance",
+                is_step_completion=True,
+                is_substep=True,
+                symbol="[red]✕[/red]",
             )
 
         # Security group
         if self.security_group_id is None:
-            logger.info(
-                f"{log_prefix} No security group found! If this is a mistake, then you may need to reset your resource data"  # noqa: E501
+            self.output_mgr.log_output(
+                agent_img_name=self.instance_name,
+                stage=StageEnum.AGENT_DELETE,
+                level="info",
+                msg="No security group found! If this is a mistake, then you may need to reset your resource data"  # noqa: E501
             )
+
         else:
+            self.output_mgr.step_starting(
+                "Deleting security group...",
+                is_substep=True
+            )
             log_security_group_id = f"{alto.ui.MAGENTA}{self.security_group_id}{alto.ui.RESET}"  # noqa: E501
             while True:
                 try:
                     self.ec2_client.delete_security_group(
                         GroupId=self.security_group_id
                     )
-                    logger.info(
-                        f"{log_prefix} Deleting security group {log_security_group_id}"  # noqa: E501
+                    self.output_mgr.log_output(
+                        agent_img_name=self.instance_name,
+                        stage=StageEnum.AGENT_DELETE,
+                        level="info",
+                        msg=f"Deleting security group {log_security_group_id}",
+                        renderable_type="Deleted security group",
+                        is_step_completion=True,
+                        is_substep=True,
+                        symbol="[red]✕[/red]",
                     )
                     break
                 except botocore.exceptions.ClientError as e:
                     if "DependencyViolation" in str(e):
-                        logger.info(
-                            f"{log_prefix} Encountered `DependencyViolation` when deleting security group {log_security_group_id}...waiting 5 seconds and trying again"  # noqa: E501
+                        self.output_mgr.log_output(
+                            agent_img_name=self.instance_name,
+                            stage=StageEnum.AGENT_DELETE,
+                            level="info",
+                            msg=f"Encountered `DependencyViolation` when deleting security group {log_security_group_id}...waiting 5 seconds and trying again"  # noqa: E501
                         )
                         time.sleep(5)
                     else:
                         raise e
+
+        self.output_mgr.step_completed("Deleted resources!")
+        self.output_mgr.stop_live()
 
         # Remove the data from the ec2.json file
         if Path(INTERNAL_FOLDER / 'ec2.json').is_file():

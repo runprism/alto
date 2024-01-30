@@ -34,6 +34,7 @@ class BuildTask(BaseTask):
             infra=self.infra,
             entrypoint=self.entrypoint,
             image=self.image,
+            output_mgr=self.output_mgr,
         )
 
         # Apply. Note that if this fails, this automatically deletes the resources.

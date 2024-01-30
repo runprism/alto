@@ -58,6 +58,13 @@ def cli():
     required=False,
 )
 @click.option(
+    '--verbose', '-v',
+    is_flag=True,
+    default=False,
+    help=f"""Log all activity after command execution according to `--log-level`. _{alto.ui.DARK_BLUE}[default: False]{alto.ui.RESET}_""",  # noqa
+    required=False,
+)
+@click.option(
     '--log-level', '-l',
     type=click.Choice(['info', 'warn', 'error', 'debug']),
     default="info",
@@ -68,6 +75,7 @@ def init(
     type: Optional[str],
     file: Optional[str],
     entrypoint: Optional[str],
+    verbose: bool,
     log_level: str
 ):
     """Create a configuration YAML
@@ -106,6 +114,7 @@ def init(
     args.file = file
     args.entrypoint = entrypoint
     args.wkdir = Path(os.path.abspath(file)).parent
+    args.verbose = verbose
     args.log_level = log_level
 
     # Apply task
@@ -126,6 +135,13 @@ def init(
     required=False
 )
 @click.option(
+    '--verbose', '-v',
+    is_flag=True,
+    default=False,
+    help=f"""Log all activity after command execution according to `--log-level`. _{alto.ui.DARK_BLUE}[default: False]{alto.ui.RESET}_""",  # noqa
+    required=False,
+)
+@click.option(
     '--log-level', '-l',
     type=click.Choice(['info', 'warn', 'error', 'debug']),
     default="info",
@@ -139,7 +155,13 @@ def init(
     help=f"""Whitelist all IP addresses. If `False`, then only whitelist your current IP address. _{alto.ui.DARK_BLUE}[default: False]{alto.ui.RESET}_""",  # noqa
     required=False,
 )
-def apply(file: str, name: str, log_level: str, whitelist_all: bool):
+def apply(
+    file: str,
+    name: str,
+    verbose: bool,
+    log_level: str,
+    whitelist_all: bool
+):
     """Build your agent using a configuration YAML.
 
     <br>Examples:
@@ -150,6 +172,7 @@ def apply(file: str, name: str, log_level: str, whitelist_all: bool):
     args.file = file
     args.name = name
     args.wkdir = Path(os.path.abspath(file)).parent
+    args.verbose = verbose
     args.log_level = log_level
     args.whitelist_all = whitelist_all
 
@@ -169,6 +192,13 @@ def apply(file: str, name: str, log_level: str, whitelist_all: bool):
     "--name",
     help="""Name of agent within Alto configuration file.""",
     required=False
+)
+@click.option(
+    '--verbose', '-v',
+    is_flag=True,
+    default=False,
+    help=f"""Log all activity after command execution according to `--log-level`. _{alto.ui.DARK_BLUE}[default: False]{alto.ui.RESET}_""",  # noqa
+    required=False,
 )
 @click.option(
     '--log-level', '-l',
@@ -201,6 +231,7 @@ def apply(file: str, name: str, log_level: str, whitelist_all: bool):
 def run(
     file: str,
     name: str,
+    verbose: bool,
     log_level: str,
     no_delete_failure: bool,
     no_delete_success: bool,
@@ -216,6 +247,7 @@ def run(
     args.file = file
     args.name = name
     args.wkdir = Path(os.path.abspath(file)).parent
+    args.verbose = verbose
     args.log_level = log_level
     args.no_delete_failure = no_delete_failure
     args.no_delete_success = no_delete_success
@@ -237,6 +269,13 @@ def run(
     "--name",
     help="""Name of agent within Alto configuration file.""",
     required=False
+)
+@click.option(
+    '--verbose', '-v',
+    is_flag=True,
+    default=False,
+    help=f"""Log all activity after command execution according to `--log-level`. _{alto.ui.DARK_BLUE}[default: False]{alto.ui.RESET}_""",  # noqa
+    required=False,
 )
 @click.option(
     '--log-level', '-l',
@@ -268,6 +307,7 @@ def run(
 def build(
     file: str,
     name: str,
+    verbose: bool,
     log_level: str,
     no_delete_failure: bool,
     no_delete_success: bool,
@@ -284,6 +324,7 @@ def build(
     args.file = file
     args.name = name
     args.wkdir = Path(os.path.abspath(file)).parent
+    args.verbose = verbose
     args.log_level = log_level
     args.no_delete_failure = no_delete_failure
     args.no_delete_success = no_delete_success
@@ -307,13 +348,25 @@ def build(
     required=False
 )
 @click.option(
+    '--verbose', '-v',
+    is_flag=True,
+    default=False,
+    help=f"""Log all activity after command execution according to `--log-level`. _{alto.ui.DARK_BLUE}[default: False]{alto.ui.RESET}_""",  # noqa
+    required=False,
+)
+@click.option(
     '--log-level', '-l',
     type=click.Choice(['info', 'warn', 'error', 'debug']),
     default="info",
     help=f"""Set the log level. _{alto.ui.DARK_BLUE}[default: info]{alto.ui.RESET}_""",
     required=False
 )
-def delete(file: str, name: str, log_level: str):
+def delete(
+    file: str,
+    name: str,
+    verbose: bool,
+    log_level: str
+):
     """Delete your agent.
 
     <br>Examples:
@@ -323,6 +376,7 @@ def delete(file: str, name: str, log_level: str):
     args.file = file
     args.name = name
     args.wkdir = Path(os.path.abspath(file)).parent
+    args.verbose = verbose
     args.log_level = log_level
 
     # Delete task
