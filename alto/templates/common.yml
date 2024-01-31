@@ -5,6 +5,6 @@ env:
 download_files:
   - '{{ Path(__file__) / "output" / "example_processed_data.csv" }}'
   - ...
-bootstrap_actions:
+post_build_cmds:
   - apt-get update
   - ...
