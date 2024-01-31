@@ -18,6 +18,7 @@ from alto.ui import (
     BRIGHT_GREEN,
     RESET,
 )
+from alto.output import OutputManager
 
 
 # Class definition
@@ -30,10 +31,10 @@ class InitTask:
         self.alto_wkdir = Path(self.args.wkdir)
 
         # Set up logger
-        if self.args.verbose:
-            set_up_logger(self.args.log_level)
-        else:
-            set_up_logger('not-set')
+        set_up_logger(self.args.log_level)
+
+        # Output manager
+        self.output_mgr: OutputManager = OutputManager(self.args)
 
     def run(self):
         """
@@ -47,10 +48,14 @@ class InitTask:
         entrypoint = self.args.entrypoint
 
         # Log
-        DEFAULT_LOGGER.info("Building configuration file...")
+        if self.args.verbose:
+            DEFAULT_LOGGER.info("Building configuration file...")
+        else:
+            self.output_mgr.step_starting("[dodger_blue2]Building configuration file...[/dodger_blue2]")  # noqa
 
         # Check if the file exists. If it does, throw an error
         if Path(self.alto_wkdir / filename).is_file():
+            self.output_mgr.step_failed()
             raise ValueError(f"`{Path(self.alto_wkdir / filename)}` already exists!")
 
         # Grab the template associated with `type` and write it to the appropriate
@@ -80,5 +85,9 @@ class InitTask:
         with open(self.alto_wkdir / filename, 'w') as f:
             yaml.safe_dump(template, f, sort_keys=False)
 
-        DEFAULT_LOGGER.info(f"{BRIGHT_GREEN}Done!{RESET}")
+        if self.args.verbose:
+            DEFAULT_LOGGER.info(f"{BRIGHT_GREEN}Done!{RESET}")
+        else:
+            self.output_mgr.step_completed("Built configuration file!")
+        self.output_mgr.stop_live()
         return 0
