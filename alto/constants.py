@@ -222,6 +222,12 @@ EC2_SUPPORTED_INSTANCE_TYPES = [
 ]
 
 
+SUPPORTED_EC2_PROTOCOLS = [
+    "ssh",
+    "ssm",
+]
+
+
 # Sys info
 PLATFORM = sys.platform
 PYTHON_VERSION = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"  # noqa: E501
