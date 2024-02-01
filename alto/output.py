@@ -5,6 +5,7 @@ from our logging infrastructure, which is handled in `alto_logger.py`.
 
 # Imports
 import argparse
+from enum import Enum
 import logging
 import sys
 from typing import Optional, List
@@ -16,6 +17,12 @@ from rich.tree import Tree
 
 from alto.constants import DEFAULT_LOGGER_NAME
 from alto.ui import StageEnum
+
+
+class Symbol(str, Enum):
+    BUILD_SUCCESS = "[green]✓[/green]"
+    SUBSTEP_BUILD_SUCCESS = "🔨"
+    DELETED = "[red]✕[/red]"
 
 
 class OutputManager:
@@ -127,7 +134,7 @@ class OutputManager:
     def step_completed(self,
         message: RenderableType,
         is_substep: bool = False,
-        symbol: Optional[str] = None,
+        symbol: Optional[Symbol] = None,
     ) -> None:
         """
         Returns the element to be rendered when a step is completed.
@@ -136,10 +143,8 @@ class OutputManager:
             message: message to log
             is_substep: boolean indicating whether step is a sub-step
         """
-        STEP_COMPLETED = "[green]✓[/green]"
-        SUBSTEP_COMPLETED = "🔨"
         if symbol is None:
-            symbol = SUBSTEP_COMPLETED if is_substep else STEP_COMPLETED
+            symbol = Symbol.SUBSTEP_BUILD_SUCCESS if is_substep else Symbol.BUILD_SUCCESS  # noqa
         msg = f"{symbol} {message}"
 
         # If we're in `verbose` mode, then don't do anything
