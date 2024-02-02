@@ -740,6 +740,9 @@ class Ec2(Agent):
     def _execute_apply_script(self,
         cmd: List[str]
     ):
+        # Attributes
+        security_group_id_attr = getattr(self, sshResource.SECURITY_GROUP_ID.value)
+
         # Open a subprocess and stream the logs
         out, err, returncode = self.stream_logs(cmd, StageEnum.AGENT_BUILD)
 
@@ -756,7 +759,7 @@ class Ec2(Agent):
         # whitelisting the current IP and try again.
         if returncode == 8:
             # For mypy
-            if self.security_group_id is None:
+            if security_group_id_attr is None:
                 raise ValueError("`security_group_id` is still None!")
             self.output_mgr.log_output(
                 agent_img_name=self.instance_name,
@@ -767,7 +770,7 @@ class Ec2(Agent):
 
             # Add the current IP to the security ingress rules
             added_ip = self.check_ingress_ip(
-                self.ec2_client, self.security_group_id
+                self.ec2_client, security_group_id_attr
             )
 
             # If the current IP address is already whitelisted, then just add
@@ -782,7 +785,7 @@ class Ec2(Agent):
                 )
                 self.add_ingress_rule(
                     self.ec2_client,
-                    self.security_group_id,
+                    security_group_id_attr,
                     "0.0.0.0",
                 )
 
@@ -848,11 +851,12 @@ class Ec2(Agent):
 
         # Create the instance. If we're not streaming all logs, then indicate to the
         # user that we're building resources
+        instance_id_attr = getattr(self, sshResource.INSTANCE_ID.value)
         self.output_mgr.step_starting("[dodger_blue2]Building resources...[/dodger_blue2]")  # noqa
         data = self.create_instance(
             self.ec2_client,
             self.ec2_resource,
-            self.instance_id,
+            instance_id_attr,
             self.instance_name,
             instance_type,
             ami_image,
@@ -914,6 +918,12 @@ class Ec2(Agent):
         """
         Run the project using the EC2 agent
         """
+        # Attributes
+        instance_id_attr = getattr(self, sshResource.INSTANCE_ID.value)
+        security_group_id_attr = getattr(self, sshResource.SECURITY_GROUP_ID.value)
+        public_dns_name_attr = getattr(self, sshResource.PUBLIC_DNS_NAME.value)
+        pem_key_path_attr = getattr(self, sshFile.PEM_KEY_PATH.value)
+
         # Full command
         full_cmd = self.entrypoint.build_command()
 
@@ -924,7 +934,7 @@ class Ec2(Agent):
             download_files_cmd.append(df)
 
         # Logging styling
-        if self.instance_name is None or self.instance_id is None:
+        if self.instance_name is None or instance_id_attr is None:
             self.output_mgr.log_output(  # type: ignore
                 agent_img_name=self.instance_name,
                 stage=StageEnum.AGENT_RUN,
@@ -934,11 +944,11 @@ class Ec2(Agent):
             return
 
         # Check the ingress rules
-        if self.security_group_id is not None:
-            self.check_ingress_ip(self.ec2_client, self.security_group_id)
+        if security_group_id_attr is not None:
+            self.check_ingress_ip(self.ec2_client, security_group_id_attr)
 
         # For mypy
-        if not isinstance(self.public_dns_name, str):
+        if not isinstance(public_dns_name_attr, str):
             raise ValueError("incompatible public DNS name!")
 
         # The agent data should exist...Build the shell command
@@ -947,9 +957,9 @@ class Ec2(Agent):
             executable='/bin/bash',
             script=self.AGENT_RUN_SCRIPT,
             args={
-                '-p': str(self.pem_key_path),
+                '-p': str(pem_key_path_attr),
                 '-u': 'ec2-user',
-                '-n': self.public_dns_name,
+                '-n': public_dns_name_attr,
                 '-d': str(self.alto_wkdir),
                 '-c': full_cmd,
                 '-f': download_files_cmd
