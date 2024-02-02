@@ -199,7 +199,7 @@ class OutputManager:
         renderable_type: Optional[RenderableType] = None,
         is_step_completion: bool = False,
         is_substep: bool = False,
-        symbol: Optional[str] = None,
+        symbol: Optional[Symbol] = None,
     ) -> None:
         """
         Log message to stdout

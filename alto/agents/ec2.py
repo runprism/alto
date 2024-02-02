@@ -9,16 +9,29 @@ Docker Agent.
 
 # Alto imports
 from alto.agents.base import Agent
+from alto.agents.protocols import (
+    Protocol,
+    SSHProtocol,
+    SSMProtocol,
+)
 from alto.constants import (
     INTERNAL_FOLDER,
     DEFAULT_LOGGER_NAME
+)
+from alto.mixins.aws_mixins import (
+    sshFile,
+    sshResource,
+    State,
 )
 import alto.ui
 from alto.entrypoints import BaseEntrypoint
 from alto.infras import BaseInfra
 from alto.command import AgentCommand
 from alto.images import BaseImage
-from alto.output import OutputManager
+from alto.output import (
+    OutputManager,
+    Symbol,
+)
 from alto.ui import StageEnum
 
 # Standard library imports
@@ -34,7 +47,6 @@ import time
 from typing import Any, Dict, List, Optional
 import subprocess
 import urllib.request
-import stat
 
 
 ##########
@@ -49,21 +61,20 @@ logger = logging.getLogger(DEFAULT_LOGGER_NAME)
 # Class definition #
 ####################
 
-class State(str, Enum):
-    PENDING = "pending"
-    RUNNING = "running"
-    STOPPING = "stopping"
-    STOPPED = "stopped"
-    SHUTTING_DOWN = "shutting-down"
-    TERMINATED = "terminated"
-
-
 class IpAddressType(str, Enum):
     V4 = "ipv4"
     V6 = "ipv6"
 
 
 class Ec2(Agent):
+    # These MUST include all SSH and SSM resources, see the AWS mixins
+    key_pair: Optional[str]
+    security_group_id: Optional[str]
+    instance_id: Optional[str]
+    public_dns_name: Optional[str]
+    state: Optional[State]
+
+    pem_key_path: Optional[Path]
 
     def __init__(self,
         args: argparse.Namespace,
@@ -101,45 +112,39 @@ class Ec2(Agent):
         self.instance_name = f"{alto_project_name}-{self.agent_name}"
 
         # Create an empty `ec2.json` file if it doesn't exist
+        empty_data: Dict[str, Dict[str, Any]] = {
+            self.instance_name: {
+                "resources": {},
+                "files": {}
+            }
+        }
         if not Path(INTERNAL_FOLDER / 'ec2.json').is_file():
             with open(Path(INTERNAL_FOLDER / 'ec2.json'), 'w') as f:
-                f.write("{}")
+                json.dump(empty_data, f)
+                data = empty_data
 
-        # Load the current data
-        with open(Path(INTERNAL_FOLDER / 'ec2.json'), 'r') as f:
-            data = json.loads(f.read())
-        f.close()
-
-        # If the current instance doesn't exist in the data, then all the attributes
-        # will be `None`
-        if self.instance_name not in data.keys():
-            self.instance_id: Optional[str] = None
-            self.public_dns_name: Optional[str] = None
-            self.security_group_id: Optional[str] = None
-            self.key_name: Optional[str] = None
-            self.pem_key_path: Optional[Path] = None
-            self.state: Optional[str] = None
-
+        # If it does, then check if `instance_name` is contained in the JSON. If it
+        # isn't, then add it in.
         else:
-            data = data[self.instance_name]
+            with open(Path(INTERNAL_FOLDER / 'ec2.json'), 'r') as f:
+                data = json.loads(f.read())
+            f.close()
+            if self.instance_name not in data.keys():
+                data.update(empty_data)
+                self.write_json(data)
 
-            # If the data exists, then it must be a JSON with two keys: "resources"
-            # and "files".
-            for attr in [
-                "instance_id",
-                "public_dns_name",
-                "security_group_id",
-                "key_name",
-                "state"
-            ]:
-                if attr in data["resources"].keys():
-                    self.__setattr__(attr, data["resources"][attr])
-                else:
-                    self.__setattr__(attr, None)
-
-            # Set PEM key path
-            if "pem_key_path" in data["files"].keys():
-                self.pem_key_path = Path(data["files"]["pem_key_path"])
+        # Set resource / file attributes
+        data = data[self.instance_name]
+        for x in sshResource:
+            if x.value in data["resources"].keys():
+                self.__setattr__(x.value, data["resources"][x.value])
+            else:
+                self.__setattr__(x.value, None)
+        for y in sshFile:
+            if y.value in data["files"].keys():
+                self.__setattr__(y.value, Path(data["files"][y.value]))
+            else:
+                self.__setattr__(y.value, None)
 
     def set_scripts_paths(self,
         apply_script: Optional[Path] = None,
@@ -170,60 +175,6 @@ class Ec2(Agent):
                 "https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html"    # noqa: E501
             ]
             raise ValueError('\n'.join(msg_list))
-
-    def create_key_pair(self,
-        ec2_client: Any,
-        key_name: str,
-        directory: Path = Path(os.path.expanduser("~/.alto"))
-    ) -> Optional[Path]:
-        """
-        Create a PEM key pair. This PEM key is required to SSH / copy files into our EC2
-        instance / EMR cluster. We will call this function before the user first creates
-        their instance.
-
-        args:
-            client: Boto3 EC2 client key_name: name of the new key pair directory:
-            directory in which to place the keypair; default is ~/.aws/
-        returns:
-            path to newly created PEM key
-        raises:
-            UnauthorizedOperation if the user does not have the required permissions to
-            create a key pair
-        """
-        response = ec2_client.create_key_pair(
-            KeyName=key_name,
-            KeyType="rsa",
-            KeyFormat="pem"
-        )
-        if not Path(directory).is_dir():
-            Path(directory).mkdir(parents=True)
-
-        # Write the key to a local file
-        try:
-            with open(Path(directory / f"{key_name}.pem"), 'w') as f:
-                f.write(response["KeyMaterial"])
-
-        # If the path already exists and cannot be edited, then raise the exception. But
-        # first, delete the newly created key pair.
-        except Exception as e:
-            ec2_client.delete_key_pair(
-                KeyName=key_name
-            )
-            raise e
-
-        # If, for whatever reason, the file doesn't exist, throw an error
-        if not Path(directory / f"{key_name}.pem").is_file():
-            raise ValueError("Could not find newly created PEM key!")
-
-        # Change the permissions
-        os.chmod(Path(directory / f"{key_name}.pem"), stat.S_IREAD)
-
-        # We'll need to persist the location of the PEM key across runs. For example,
-        # let's say a user calls `agent apply` and creates the key-pair and EC2
-        # instance. When they call `agent run`, we will need to use the PEM key created
-        # by `agent apply` to execute the operation. For now, return the path. We'll
-        # save out a JSON with this path in the agent class.
-        return Path(directory / f"{key_name}.pem")
 
     def write_json(self, data: Dict[str, Dict[str, Any]]):
         """
@@ -270,48 +221,54 @@ class Ec2(Agent):
         Delete all resources found in the JSON
         """
         del_resources: Dict[str, str] = {}
+
+        # If the path doesn't exist, then return an empty dictionary
         json_path = Path(INTERNAL_FOLDER) / 'ec2.json'
         if not json_path.is_file():
             return del_resources
+
+        # Otherwise, iterate through the dictionary and delete the resources
         else:
             with open(json_path, 'r') as f:
                 json_data = json.loads(f.read())
             f.close()
-
-            try:
-                json_data = json_data[self.instance_name]
-            except KeyError:
-                json_data = {
-                    "resources": {},
-                    "files": {},
-                }
-
-            # Resources and files
-            resources = json_data["resources"]
-            files = json_data["files"]
+            json_data = json_data[self.instance_name]
+            resources = json_data.get("resources", {})
+            files = json_data.get("files", {})
 
             # Key name
-            if "key_name" in resources.keys():
+            if sshResource.KEY_PAIR.value in resources.keys():
+                self.output_mgr.step_starting("Deleting key pair...")
                 pem_key_path = files["pem_key_path"]
                 self.ec2_client.delete_key_pair(
-                    KeyName=resources["key_name"]
+                    KeyName=resources[sshResource.KEY_PAIR.value]
                 )
                 os.unlink(str(pem_key_path))
-                del_resources["PEM key"] = resources["key_name"]
+                del_resources[sshResource.KEY_PAIR.value] = resources[sshResource.KEY_PAIR.value]  # noqa
+                self.output_mgr.step_completed(
+                    "Deleted key pair!",
+                    symbol=Symbol.DELETED
+                )
 
             # Instance
-            if "instance_id" in resources.keys():
+            if sshResource.INSTANCE_ID.value in resources.keys():
+                self.output_mgr.step_starting("Deleting EC2 instance...")
                 self.ec2_client.terminate_instances(
-                    InstanceIds=[resources["instance_id"]]
+                    InstanceIds=[resources[sshResource.INSTANCE_ID.value]]
                 )
-                del_resources["instance"] = resources["instance_id"]
+                del_resources[sshResource.INSTANCE_ID.value] = resources[sshResource.INSTANCE_ID.value]  # noqa
+                self.output_mgr.step_completed(
+                    "Deleted EC2 instance!",
+                    symbol=Symbol.DELETED
+                )
 
             # Security group
-            if "security_group_id" in resources.keys():
+            if sshResource.SECURITY_GROUP_ID.value in resources.keys():
+                self.output_mgr.step_starting("Deleting security group...")
                 while True:
                     try:
                         self.ec2_client.delete_security_group(
-                            GroupId=resources["security_group_id"]
+                            GroupId=resources[sshResource.SECURITY_GROUP_ID.value]
                         )
                         break
                     except botocore.exceptions.ClientError as e:
@@ -320,7 +277,11 @@ class Ec2(Agent):
                         else:
                             raise e
 
-                del_resources["security group"] = resources["security_group_id"]
+                del_resources[sshResource.SECURITY_GROUP_ID.value] = resources[sshResource.SECURITY_GROUP_ID.value]  # noqa
+                self.output_mgr.step_completed(
+                    "Deleted security group!",
+                    symbol=Symbol.DELETED
+                )
 
         os.unlink(json_path)
         return del_resources
@@ -350,21 +311,21 @@ class Ec2(Agent):
         resources: Dict[str, Optional[Dict[str, str]]] = {}
 
         # Key pair
-        resources["key_pair"] = None
+        resources[sshResource.KEY_PAIR.value] = None
         keypairs = ec2_client.describe_key_pairs()
         for kp in keypairs["KeyPairs"]:
             if kp["KeyName"] == instance_name:
-                resources["key_pair"] = kp
+                resources[sshResource.KEY_PAIR.value] = kp
 
         # Security groups
-        resources["security_group"] = None
+        resources[sshResource.SECURITY_GROUP_ID.value] = None
         security_groups = ec2_client.describe_security_groups()
         for sg in security_groups["SecurityGroups"]:
             if sg["GroupName"] == instance_name:
-                resources["security_group"] = sg
+                resources[sshResource.SECURITY_GROUP_ID.value] = sg
 
         # Instance
-        resources["instance"] = None
+        resources[sshResource.INSTANCE_ID.value] = None
         response = ec2_client.describe_instances()
         reservations = response["Reservations"]
         if len(reservations) > 0 and instance_id is not None:
@@ -393,98 +354,12 @@ class Ec2(Agent):
                                 f"instance {instance_id} does not have key pair `{instance_name}`"  # noqa: E501
                             )
 
-                        # Otherwise, set to True
-                        resources["instance"] = inst
+                        # Otherwise, set to True. mypy doesn't recognize that
+                        # `instance_id` is non-null if we reach this point in the code.
+                        resources[sshResource.INSTANCE_ID.value] = instance_id  # type: ignore # noqa
 
         # Return the resources
         return resources
-
-    def check_instance_data(self,
-        instance_id: Optional[str]
-    ) -> Dict[str, Any]:
-        """
-        Check if the instance exists
-
-        args:
-            ec2_client: Boto3 EC2 client
-            instance_id: instance ID
-        returns:
-            empty dictionary if instance does not exist. otherwise, a dictionary with
-            {
-                "instance_id": ...,
-                "public_dns_name": ...,
-                "key_name": ...,
-                "state": ...,
-            }
-        """
-        ec2_client = boto3.client("ec2")
-        results: Dict[str, Any] = {}
-
-        # If the instance is None, then return an empty dictionary. This happens if the
-        # user is creating their first instance or deleted their previous agent and is
-        # re-creating one.
-        if instance_id is None:
-            return results
-
-        # Describe instances and iterate through them
-        response = ec2_client.describe_instances()
-        reservations = response["Reservations"]
-        if len(reservations) > 0:
-            for res in reservations:
-                instances = res["Instances"]
-                for inst in instances:
-                    if inst["InstanceId"] == instance_id:
-                        results["instance_id"] = instance_id
-                        results["public_dns_name"] = inst["PublicDnsName"]
-                        results["key_name"] = inst["KeyName"]
-                        results["security_groups"] = inst["SecurityGroups"]
-                        results["state"] = State(inst["State"]["Name"])
-
-        # Return
-        return results
-
-    def restart_instance(self,
-        ec2_client,
-        state: State,
-        instance_id: str,
-    ) -> Optional[State]:
-        """
-        If the instance name already exists, check if it's running. If it isn't (i.e.,
-        it's been stopped), then restart it.
-
-        args:
-            ec2_client: Boto3 EC2 client
-            state: state of instance
-            instance_name: name of instance to restart
-            instance_id: ID of instance to restart
-        returns:
-            State of restarted instance (should only be State.RUNNING)
-        """
-        if state is None:
-            raise ValueError(
-                "`start_stopped_instance` called on a nonexistent instance!"  # noqa: E501
-            )
-
-        # If the instance is pending, then wait until the state is running
-        elif state == State.PENDING:
-            while state == State.PENDING:
-                results = self.check_instance_data(instance_id)
-                state = results["state"]
-                time.sleep(1)
-            return state
-
-        # If the instance is stopping / stopped, then restart it and wait until the
-        # state is `running`.
-        elif state in [State.STOPPED, State.STOPPING]:
-            ec2_client.start_instances(InstanceIds=instance_id)
-            while state != State.RUNNING:
-                results = self.check_instance_data(instance_id)
-                time.sleep(1)
-                state = results["state"]
-            return state
-
-        # If nothing's been returned, then the instance should already be running
-        return state
 
     def check_ip_address_type(self,
         external_ip: str
@@ -580,54 +455,6 @@ class Ec2(Agent):
                 return None
             raise e
 
-    def create_new_security_group(self,
-        ec2_client: Any,
-        instance_name: str,
-    ):
-        """
-        Create a new security group for our EC2 instance. This security group allows
-        traffic from the user's IP only.
-
-        args:
-            ec2_client: Boto3 EC2 client
-            instance_id: instance ID
-        returns:
-            newly created security group ID
-        """
-
-        # Default VPC
-        response = ec2_client.describe_vpcs()
-        vpc_id = response.get('Vpcs', [{}])[0].get('VpcId', '')
-
-        # Create the security group
-        response = ec2_client.create_security_group(
-            GroupName=instance_name,
-            Description=f'VPC for {instance_name} EC2 agent',
-            VpcId=vpc_id
-        )
-        security_group_id = response['GroupId']
-
-        # Add an ingress rule
-        try:
-            external_ip = urllib.request.urlopen('https://ident.me').read().decode('utf8')  # noqa: E501
-            self.add_ingress_rule(
-                ec2_client,
-                security_group_id,
-                external_ip
-            )
-            return security_group_id, vpc_id
-
-        # If we encounter an error, first delete the newly created security group. Then
-        # raise the exception.
-        except Exception as e:
-
-            # The security group shouldn't be attached to an instance at this point, so
-            # we are safe to just delete it.
-            ec2_client.delete_security_group(
-                GroupId=security_group_id
-            )
-            raise e
-
     def check_ingress_ip(self,
         ec2_client: Any,
         security_group_id: str,
@@ -711,235 +538,57 @@ class Ec2(Agent):
         returns:
             EC2 response
         """
+        protocol: Protocol
+        if self.infra.infra_conf["protocol"] == "ssh":
+            protocol = SSHProtocol(
+                self.args,
+                self.infra.infra_conf,
+                self.output_mgr,
+            )
+        else:
+            protocol = SSMProtocol(  # type: ignore
+                self.args,
+                self.infra.infra_conf,
+                self.output_mgr,
+            )
+
         # Wrap the whole thing in a single try-except block
         try:
-            # Data to write
-            data = {}
+            # Our `ec2.json` file should always exist, because it's created upon the
+            # agent's instantiation.
+            ec2_json_path = Path(INTERNAL_FOLDER / 'ec2.json')
+            with open(ec2_json_path, 'r') as f:
+                data = json.loads(f.read())
+            f.close()
+            current_data = data[instance_name]
 
-            # Check resources
-            resources = self.check_resources(ec2_client, instance_name, instance_id)
-
-            def _create_exception(resource):
-                return ValueError('\n'.join([
-                    f"{resource} exists, but ~/.alto/ec2.json file not found! This only happens if:",  # noqa: E501
-                    f"    1. You manually created the {resource}",
-                    "    2. You deleted ~/.alto/ec2.json",
-                    f"Delete the {resource} from EC2 and try again!"
-                ]))
-
-            # Create PEM key pair
-            self.output_mgr.step_starting(
-                "Creating key pair",
-                is_substep=True
+            # Create the instance using the appropriate protocol
+            new_data = protocol.create_instance(
+                current_data=current_data,
+                ec2_client=ec2_client,
+                ec2_resource=ec2_resource,
+                instance_id=instance_id,
+                instance_name=instance_name,
+                instance_type=instance_type,
+                ami_image=ami_image,
             )
-            if resources["key_pair"] is None:
-                pem_key_path = self.create_key_pair(
-                    ec2_client,
-                    key_name=instance_name,
-                )
-                log_instance_name = f"{alto.ui.MAGENTA}{instance_name}{alto.ui.RESET}"  # noqa: E501
-                self.output_mgr.log_output(
-                    agent_img_name=instance_name,
-                    stage=StageEnum.AGENT_BUILD,
-                    level="info",
-                    msg=f"Created key pair {log_instance_name}",
-                    renderable_type="Created key-pair",
-                    is_step_completion=True,
-                    is_substep=True
-                )
-
-                # Write the data to the JSON
-                data = {
-                    "resources": {"key_name": instance_name},
-                    "files": {"pem_key_path": str(pem_key_path)}
-                }
-                self.update_json(data)
-            else:
-
-                # If the key-pair exists, then the location of the PEM key path should
-                # be contained in ~/.alto/ec2.json. If it isn't, then either:
-                #   1. The user manually created the key pair
-                #   2. The user deleted ~/.alto/ec2.json
-                if not Path(INTERNAL_FOLDER / 'ec2.json').is_file():
-                    raise _create_exception("key-pair")
-                pem_key_path = self.pem_key_path
-
-                # Log
-                log_instance_name = f"{alto.ui.MAGENTA}{instance_name}{alto.ui.RESET}"  # noqa: E501
-                log_instance_path = f"{alto.ui.MAGENTA}{str(pem_key_path)}{alto.ui.RESET}"  # noqa: E501
-                self.output_mgr.log_output(
-                    agent_img_name=instance_name,
-                    stage=StageEnum.AGENT_BUILD,
-                    level="info",
-                    msg=f"Using existing key-pair {log_instance_name} at {log_instance_path}",  # noqa
-                    renderable_type="Using existing key-pair",
-                    is_step_completion=True,
-                    is_substep=True
-                )
-
-            # Security group
-            self.output_mgr.step_starting(
-                "Creating security group",
-                is_substep=True
-            )
-            if resources["security_group"] is None:
-                security_group_id, vpc_id = self.create_new_security_group(
-                    ec2_client,
-                    instance_name
-                )
-
-                # Log
-                log_security_group_id = f"{alto.ui.MAGENTA}{security_group_id}{alto.ui.RESET}"  # noqa: E501
-                log_vpc_id = f"{alto.ui.MAGENTA}{vpc_id}{alto.ui.RESET}"  # noqa: E501
-                self.output_mgr.log_output(
-                    agent_img_name=instance_name,
-                    stage=StageEnum.AGENT_BUILD,
-                    level="info",
-                    msg=f"Created security group with ID {log_security_group_id} in VPC {log_vpc_id}",  # noqa: E501
-                    renderable_type="Created security group",
-                    is_step_completion=True,
-                    is_substep=True
-                )
-
-                # Write the data to the JSON
-                data = {
-                    "resources": {"security_group_id": security_group_id},
-                }
-                self.update_json(data)
-            else:
-                if not Path(INTERNAL_FOLDER / 'ec2.json').is_file():
-                    raise _create_exception("security group")
-
-                # Log
-                security_group_id = self.security_group_id
-                self.check_ingress_ip(ec2_client, security_group_id)
-                log_security_group_id = f"{alto.ui.MAGENTA}{security_group_id}{alto.ui.RESET}"  # noqa: E501
-                self.output_mgr.log_output(
-                    agent_img_name=instance_name,
-                    stage=StageEnum.AGENT_BUILD,
-                    level="info",
-                    msg=f"Using existing security group {log_security_group_id}",  # noqa: E501
-                    renderable_type="Using existing security group",
-                    is_step_completion=True,
-                    is_substep=True
-                )
-
-            # Log instance ID template
-            log_instance_id_template = f"{alto.ui.MAGENTA}{{instance_id}}{alto.ui.RESET}"  # noqa: E501
-
-            # Instance
-            self.output_mgr.step_starting(
-                "Creating EC2 instance",
-                is_substep=True
-            )
-            if resources["instance"] is None:
-                instance = ec2_resource.create_instances(
-                    InstanceType=instance_type,
-                    KeyName=instance_name,
-                    MinCount=1,
-                    MaxCount=1,
-                    ImageId=ami_image,
-                    TagSpecifications=[
-                        {
-                            'ResourceType': 'instance',
-                            'Tags': [
-                                {
-                                    'Key': 'Name',
-                                    'Value': instance_name
-                                },
-                            ]
-                        },
-                    ],
-                    SecurityGroupIds=[
-                        security_group_id
-                    ]
-                )
-                instance_id = instance[0].id
-
-                # Log
-                self.output_mgr.log_output(
-                    agent_img_name=instance_name,
-                    stage=StageEnum.AGENT_BUILD,
-                    level="info",
-                    msg=f"Created EC2 instance with ID {log_instance_id_template.format(instance_id=instance_id)}",  # noqa: E501
-                    renderable_type="Created EC2 instance",
-                    is_step_completion=True,
-                    is_substep=True
-                )
-                time.sleep(1)
-            else:
-                if not Path(INTERNAL_FOLDER / 'ec2.json').is_file():
-                    raise _create_exception("instance")
-                instance_id = self.instance_id
-
-                # Log
-                self.output_mgr.log_output(
-                    agent_img_name=instance_name,
-                    stage=StageEnum.AGENT_BUILD,
-                    level="info",
-                    msg=f"Using existing EC2 instance with ID {log_instance_id_template.format(instance_id=instance_id)}",  # noqa: E501
-                    renderable_type="Using existing EC2 instance",
-                    is_step_completion=True,
-                    is_substep=True
-                )
-
-            # Instance data
-            resp = self.check_instance_data(instance_id)
-
-            # If the instance exists but its key-name is not `instance_name` (this
-            # really should never happen unless the user manually creates an EC2
-            # instance that has the same name), then raise an error
-            if len(resp.keys()) > 0 and resp["key_name"] != instance_name:
-                raise ValueError(
-                    f"unrecognized key `{resp['key_name']}`...the agent requires key `{instance_name}.pem`"  # noqa: E501
-                )
-
-            # If the instance exists and is running, then just return
-            elif len(resp.keys()) > 0 and resp["state"] in [State.PENDING, State.RUNNING]:  # noqa: E501
-                while resp["state"] == State.PENDING:
-
-                    # Log
-                    log_pending_status = f"{alto.ui.YELLOW}pending{alto.ui.RESET}"  # noqa: E501
-                    self.output_mgr.log_output(
-                        agent_img_name=instance_name,
-                        stage=StageEnum.AGENT_BUILD,
-                        level="info",
-                        msg=f"Instance {log_instance_id_template.format(instance_id=instance_id)} is {log_pending_status}... checking again in 5 seconds"  # noqa: E501
-                    )
-                    resp = self.check_instance_data(instance_id)
-                    time.sleep(5)
-
-            # If the state exiss but has stopped, then restart it
-            elif len(resp.keys()) > 0 and resp["state"] in [State.STOPPED, State.STOPPING]:  # noqa: E501
-                self.restart_instance(
-                    ec2_client,
-                    resp["state"],
-                    resp["instance_id"]
-                )
-
-            # Write data
-            data = {
-                "resources": {
-                    "instance_id": instance_id,  # type: ignore
-                    "public_dns_name": resp["public_dns_name"],
-                    "state": resp["state"]
-                },
-            }
-            data = self.update_json(data)
+            self.update_json(new_data)
 
             # Update class attributes
-            self.instance_id = instance_id
-            self.public_dns_name = resp["public_dns_name"]
-            self.security_group_id = security_group_id
-            self.key_name = instance_name
-            self.state = resp["state"]
-            self.pem_key_path = pem_key_path
+            setattr(self, sshResource.INSTANCE_ID.value, new_data["resources"][sshResource.INSTANCE_ID.value])  # noqa: E501
+            setattr(self, sshResource.PUBLIC_DNS_NAME.value, new_data["resources"][sshResource.PUBLIC_DNS_NAME.value])  # noqa: E501
+            setattr(self, sshResource.SECURITY_GROUP_ID.value, new_data["resources"][sshResource.SECURITY_GROUP_ID.value])  # noqa: E501
+            setattr(self, sshResource.KEY_PAIR.value, new_data["resources"][sshResource.KEY_PAIR.value])  # noqa: E501
+            setattr(self, sshResource.STATE.value, new_data["resources"][sshResource.STATE.value])  # noqa: E501
+            setattr(self, sshFile.PEM_KEY_PATH.value, new_data["files"][sshFile.PEM_KEY_PATH.value])  # noqa: E501
 
             # Return the data
-            return data
+            return new_data
 
         # If an error occurs, delete whatever resources may have been created
         except Exception as e:
+            # Update the JSON with the resources that were created, then delete
+            self.update_json(protocol.resource_data)
             deleted_resources = self.delete_resources_in_json()
 
             # Log the deleted resources
@@ -1276,7 +925,7 @@ class Ec2(Agent):
 
         # Logging styling
         if self.instance_name is None or self.instance_id is None:
-            self.output_mgr.log_output(
+            self.output_mgr.log_output(  # type: ignore
                 agent_img_name=self.instance_name,
                 stage=StageEnum.AGENT_RUN,
                 level="error",
@@ -1345,34 +994,26 @@ class Ec2(Agent):
         # Logging styling
         self.output_mgr.step_starting("[dodger_blue2]Deleting resources...[/dodger_blue2]")  # noqa
 
-        # Safety check. mypy thinks this statement is unreachable.
-        if self.instance_name is None:
-            self.output_mgr.log_output(  # type: ignore
-                agent_img_name=self.instance_name,
-                stage=StageEnum.AGENT_DELETE,
-                level="info",
-                msg="Agent data not found! Did you manually delete the ~/.alto/ec2.json file?"  # noqa: E501
-            )
-            return
-
         # Key pair
-        if self.key_name is None:
+        key_pair_attr = getattr(self, sshResource.KEY_PAIR.value)
+        if key_pair_attr is None:
             self.output_mgr.log_output(
                 agent_img_name=self.instance_name,
                 stage=StageEnum.AGENT_DELETE,
                 level="info",
-                msg="No agent data found!",
+                msg="Key pair not found! If this is a mistake, then you may need to reset your resource data"  # noqa: E501
             )
 
         else:
+            pem_key_path_attr = getattr(self, sshFile.PEM_KEY_PATH.value)
             self.output_mgr.step_starting(
                 "Deleting key-pair...",
                 is_substep=True
             )
-            log_key_pair = f"{alto.ui.MAGENTA}{self.key_name}{alto.ui.RESET}"
-            log_key_path = f"{alto.ui.MAGENTA}{str(self.pem_key_path)}{alto.ui.RESET}"  # noqa: E501
+            log_key_pair = f"{alto.ui.MAGENTA}{key_pair_attr}{alto.ui.RESET}"
+            log_key_path = f"{alto.ui.MAGENTA}{str(pem_key_path_attr)}{alto.ui.RESET}"  # noqa: E501
             self.ec2_client.delete_key_pair(
-                KeyName=self.key_name
+                KeyName=key_pair_attr
             )
             self.output_mgr.log_output(
                 agent_img_name=self.instance_name,
@@ -1382,10 +1023,10 @@ class Ec2(Agent):
                 renderable_type="Deleted key pair",
                 is_step_completion=True,
                 is_substep=True,
-                symbol="[red]✕[/red]",
+                symbol=Symbol.DELETED,
             )
             try:
-                os.unlink(str(self.pem_key_path))
+                os.unlink(str(pem_key_path_attr))
 
             # If this file never existed, then pass
             except FileNotFoundError:
@@ -1397,12 +1038,13 @@ class Ec2(Agent):
                 )
 
         # Instance
-        if self.instance_id is None:
+        instance_id_attr = getattr(self, sshResource.INSTANCE_ID)
+        if instance_id_attr is None:
             self.output_mgr.log_output(
                 agent_img_name=self.instance_name,
                 stage=StageEnum.AGENT_DELETE,
                 level="info",
-                msg="No instance found!"
+                msg="Instance not found! If this is a mistake, then you may need to reset your resource data"  # noqa: E501
             )
 
         else:
@@ -1410,9 +1052,9 @@ class Ec2(Agent):
                 "Deleting instance...",
                 is_substep=True
             )
-            log_instance_id = f"{alto.ui.MAGENTA}{self.instance_id}{alto.ui.RESET}"  # noqa: E501
+            log_instance_id = f"{alto.ui.MAGENTA}{instance_id_attr}{alto.ui.RESET}"  # noqa: E501
             _ = self.ec2_client.terminate_instances(
-                InstanceIds=[self.instance_id]
+                InstanceIds=[instance_id_attr]
             )
             self.output_mgr.log_output(
                 agent_img_name=self.instance_name,
@@ -1422,16 +1064,17 @@ class Ec2(Agent):
                 renderable_type="Deleted instance",
                 is_step_completion=True,
                 is_substep=True,
-                symbol="[red]✕[/red]",
+                symbol=Symbol.DELETED,
             )
 
         # Security group
-        if self.security_group_id is None:
+        security_group_id_attr = getattr(self, sshResource.SECURITY_GROUP_ID.value)
+        if security_group_id_attr is None:
             self.output_mgr.log_output(
                 agent_img_name=self.instance_name,
                 stage=StageEnum.AGENT_DELETE,
                 level="info",
-                msg="No security group found! If this is a mistake, then you may need to reset your resource data"  # noqa: E501
+                msg="Security group not found! If this is a mistake, then you may need to reset your resource data"  # noqa: E501
             )
 
         else:
@@ -1439,11 +1082,11 @@ class Ec2(Agent):
                 "Deleting security group...",
                 is_substep=True
             )
-            log_security_group_id = f"{alto.ui.MAGENTA}{self.security_group_id}{alto.ui.RESET}"  # noqa: E501
+            log_security_group_id = f"{alto.ui.MAGENTA}{security_group_id_attr}{alto.ui.RESET}"  # noqa: E501
             while True:
                 try:
                     self.ec2_client.delete_security_group(
-                        GroupId=self.security_group_id
+                        GroupId=security_group_id_attr
                     )
                     self.output_mgr.log_output(
                         agent_img_name=self.instance_name,
@@ -1453,7 +1096,7 @@ class Ec2(Agent):
                         renderable_type="Deleted security group",
                         is_step_completion=True,
                         is_substep=True,
-                        symbol="[red]✕[/red]",
+                        symbol=Symbol.DELETED,
                     )
                     break
                 except botocore.exceptions.ClientError as e:
