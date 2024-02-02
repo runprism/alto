@@ -30,6 +30,15 @@ class Agent(ConfigMixin, metaclass=MetaAgent):
     """
     Base Agent class
     """
+    # Attributes
+    args: argparse.Namespace
+    alto_wkdir: Path
+    agent_name: str
+    agent_conf: Dict[str, Any]
+    infra: BaseInfra
+    entrypoint: BaseEntrypoint
+    image: Optional[BaseImage]
+    output_mgr: OutputManager
 
     def __init__(self,
         args: argparse.Namespace,
