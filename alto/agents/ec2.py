@@ -1048,7 +1048,7 @@ class Ec2(Agent):
                 )
 
         # Instance
-        instance_id_attr = getattr(self, sshResource.INSTANCE_ID)
+        instance_id_attr = getattr(self, sshResource.INSTANCE_ID.value)
         if instance_id_attr is None:
             self.output_mgr.log_output(
                 agent_img_name=self.instance_name,
