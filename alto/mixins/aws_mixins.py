@@ -34,6 +34,13 @@ class sshFile(str, Enum):
     PEM_KEY_PATH = "pem_key_path"
 
 
+class ssmResource(str, Enum):
+    INSTANCE_ID = "instance_id"
+    PUBLIC_DNS_NAME = "public_dns_name"
+    INSTANCE_PROFILE = "instance_profile"
+    STATE = "state"
+
+
 class AwsMixin:
 
     def restart_instance(self,

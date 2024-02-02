@@ -48,6 +48,10 @@ from typing import Any, Dict, List, Optional
 import subprocess
 import urllib.request
 
+# Type hints
+from mypy_boto3_ec2.client import EC2Client
+from mypy_boto3_ec2.service_resource import EC2ServiceResource
+
 
 ##########
 # Logger #
@@ -67,14 +71,24 @@ class IpAddressType(str, Enum):
 
 
 class Ec2(Agent):
-    # These MUST include all SSH and SSM resources, see the AWS mixins
-    key_pair: Optional[str]
-    security_group_id: Optional[str]
-    instance_id: Optional[str]
-    public_dns_name: Optional[str]
-    state: Optional[State]
+    instance_name: str
+    AGENT_APPLY_SCRIPT: str
+    AGENT_RUN_SCRIPT: str
+    ec2_client: EC2Client
+    ec2_resource: EC2ServiceResource
 
-    pem_key_path: Optional[Path]
+    # All SSH resources
+    key_pair: str
+    security_group_id: str
+    instance_id: str
+    public_dns_name: str
+    state: State
+
+    # All SSH files
+    pem_key_path: Path
+
+    # All SSM resources (non-overlapping with SSH resources)
+    instance_profile: str
 
     def __init__(self,
         args: argparse.Namespace,
