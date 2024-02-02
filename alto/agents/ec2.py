@@ -601,6 +601,9 @@ class Ec2(Agent):
 
         # If an error occurs, delete whatever resources may have been created
         except Exception as e:
+            # Close the live
+            self.output_mgr.step_failed()
+
             # Update the JSON with the resources that were created, then delete
             self.update_json(protocol.resource_data)
             deleted_resources = self.delete_resources_in_json()
@@ -613,9 +616,6 @@ class Ec2(Agent):
                     level="info",
                     msg=f"Deleting {rs_name} `{rs_id}`"
                 )
-
-            # Close the live
-            self.output_mgr.step_failed()
 
             raise e
 
@@ -922,10 +922,9 @@ class Ec2(Agent):
             self.output_mgr.stop_live()
             return returncode
 
-        # If we encounter any sort of error, delete the resources first and then raise
+        # If we encounter any sort of error. The parent function is in charge of calling
+        # the output manager and deleting the resources.
         except Exception as e:
-            self.output_mgr.step_failed()
-            self.delete()
             raise e
 
     def run(self, overrides={}):

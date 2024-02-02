@@ -23,6 +23,7 @@ class Symbol(str, Enum):
     BUILD_SUCCESS = "[green]✓[/green]"
     SUBSTEP_BUILD_SUCCESS = "🔨"
     DELETED = "[red]✕[/red]"
+    SKIPPED = "[yellow1]►[/yellow1]"
 
 
 class OutputManager:
@@ -177,15 +178,16 @@ class OutputManager:
             # We know that, in our tree, the labels are always spinners. Mypy doesn't
             # know this, so it throws an error
             lbl: Spinner = tree.label  # type: ignore
-            txt = lbl.text.__str__()
-            tree.label = f"[red]✕ Failed when {txt.lower().replace('...', '')}[/red]"  # noqa
+            txt = lbl.text.__str__().lower().replace("...", "")
+            txt = txt.replace("ec2", "EC2")
+            tree.label = f"[red]✕ Failed when {txt}[/red]"  # noqa
 
             # Skip the remaining tasks
             while len(self.current_renders_all) > 0:
                 curr_elt: Tree = self.current_renders_all.pop()
                 curr_lbl: Spinner = curr_elt.label  # type: ignore
                 curr_txt = curr_lbl.text.__str__()
-                curr_elt.label = f"[orange]➜[/orange] Skipped {curr_txt.lower().replace('...', '')}"  # noqa
+                curr_elt.label = f"{Symbol.SKIPPED} Skipped {curr_txt.lower().replace('...', '')}"  # noqa
 
         self.console.print(self.current_render)
         self.stop_live()
