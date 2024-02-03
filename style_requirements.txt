@@ -4,4 +4,3 @@ typed-ast
 types-PyYAML
 flake8
 types-requests
-types-urllib3

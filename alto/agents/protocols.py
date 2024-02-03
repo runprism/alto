@@ -142,7 +142,7 @@ class SSHProtocol(Protocol):
 
         # Add an ingress rule
         try:
-            external_ip = urllib.request.urlopen('https://ident.me').read().decode('utf8')  # noqa: E501
+            external_ip = urllib.request.urlopen('https://ident.me').read().decode('utf8')  # type: ignore # noqa: E501
             self.add_ingress_rule(
                 ec2_client,
                 security_group_id,
@@ -282,7 +282,7 @@ class SSHProtocol(Protocol):
             )
 
         # Get current IP address
-        external_ip = urllib.request.urlopen('https://ident.me').read().decode('utf8')
+        external_ip = urllib.request.urlopen('https://ident.me').read().decode('utf8')  # type: ignore # noqa: E501
         external_ip_type = self.check_ip_address_type(external_ip)
 
         # Check if IP is in ingress rules
