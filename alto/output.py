@@ -23,7 +23,7 @@ class Symbol(str, Enum):
     BUILD_SUCCESS = "[green]✓[/green]"
     SUBSTEP_BUILD_SUCCESS = "🔨"
     DELETED = "[red]✕[/red]"
-    SKIPPED = "[yellow1]►[/yellow1]"
+    SKIPPED = "[light_goldenrod1]≫[/light_goldenrod1]"
 
 
 class OutputManager:
