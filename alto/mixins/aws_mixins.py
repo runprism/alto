@@ -22,23 +22,20 @@ class IpAddressType(str, Enum):
     V6 = "ipv6"
 
 
-class sshResource(str, Enum):
+class ec2Resource(str, Enum):
+    # For the SSH protocol
     KEY_PAIR = "key_pair"
     SECURITY_GROUP_ID = "security_group_id"
     INSTANCE_ID = "instance_id"
     PUBLIC_DNS_NAME = "public_dns_name"
     STATE = "state"
 
+    # For the SSM protocol
+    ROLE_ARN = "role_arn"
 
-class sshFile(str, Enum):
+
+class ec2File(str, Enum):
     PEM_KEY_PATH = "pem_key_path"
-
-
-class ssmResource(str, Enum):
-    INSTANCE_ID = "instance_id"
-    PUBLIC_DNS_NAME = "public_dns_name"
-    INSTANCE_PROFILE = "instance_profile"
-    STATE = "state"
 
 
 class AwsMixin:

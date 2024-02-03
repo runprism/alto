@@ -5,12 +5,13 @@ Protocols for accessing virtual machines. Currently, only needed for EC2 instanc
 # Imports
 import argparse
 import botocore
+import json
 import os
 from pathlib import Path
 import re
 import stat
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 import urllib
 
 # Alto imports
@@ -19,8 +20,8 @@ from alto.mixins.aws_mixins import (
     AwsMixin,
     State,
     IpAddressType,
-    sshResource,
-    sshFile,
+    ec2Resource,
+    ec2File,
 )
 from alto.output import (
     OutputManager,
@@ -331,11 +332,13 @@ class SSHProtocol(Protocol):
         Create EC2 instance
 
         args:
+            current_data: current EC2 resources/files data
             ec2_client: Boto3 AWS EC2 client
             ec2_resource: Boto3 AWS EC2 resource
             instance_id: EC2 instance ID
             instance_name: name of EC2 instance
             instance_type: EC2 instance types
+            ami_image: AMI image to use in instance
         returns:
             EC2 response
         """
@@ -358,7 +361,7 @@ class SSHProtocol(Protocol):
                 "Creating key pair",
                 is_substep=True
             )
-            if current_resources.get(sshResource.KEY_PAIR.value, None) is None:
+            if current_resources.get(ec2Resource.KEY_PAIR.value, None) is None:
                 pem_key_path = self.create_key_pair(
                     ec2_client,
                     key_name=instance_name,
@@ -380,8 +383,8 @@ class SSHProtocol(Protocol):
                 #   1. The user manually created the key pair
                 #   2. The user deleted ~/.alto/ec2.json
                 if not Path(INTERNAL_FOLDER / 'ec2.json').is_file():
-                    raise _create_exception(sshResource.KEY_PAIR.value)
-                pem_key_path = current_files[sshFile.PEM_KEY_PATH.value]
+                    raise _create_exception(ec2Resource.KEY_PAIR.value)
+                pem_key_path = current_files[ec2File.PEM_KEY_PATH.value]
 
                 # Log
                 log_instance_name = f"{alto.ui.MAGENTA}{instance_name}{alto.ui.RESET}"  # noqa: E501
@@ -398,8 +401,8 @@ class SSHProtocol(Protocol):
 
             # Data to write to JSON
             self.resource_data = {
-                "resources": {sshResource.KEY_PAIR.value: instance_name},
-                "files": {sshFile.PEM_KEY_PATH.value: str(pem_key_path)}
+                "resources": {ec2Resource.KEY_PAIR.value: instance_name},
+                "files": {ec2File.PEM_KEY_PATH.value: str(pem_key_path)}
             }
 
             # Security group
@@ -407,7 +410,7 @@ class SSHProtocol(Protocol):
                 "Creating security group",
                 is_substep=True
             )
-            if current_resources.get(sshResource.SECURITY_GROUP_ID.value, None) is None:
+            if current_resources.get(ec2Resource.SECURITY_GROUP_ID.value, None) is None:
                 security_group_id, vpc_id = self.create_new_security_group(
                     ec2_client,
                     instance_name
@@ -427,10 +430,10 @@ class SSHProtocol(Protocol):
                 )
             else:
                 if not Path(INTERNAL_FOLDER / 'ec2.json').is_file():
-                    raise _create_exception(sshResource.SECURITY_GROUP_ID.value)
+                    raise _create_exception(ec2Resource.SECURITY_GROUP_ID.value)
 
                 # Log
-                security_group_id = current_resources[sshResource.SECURITY_GROUP_ID.value]  # noqa
+                security_group_id = current_resources[ec2Resource.SECURITY_GROUP_ID.value]  # noqa
                 self.check_ingress_ip(ec2_client, security_group_id)
                 log_security_group_id = f"{alto.ui.MAGENTA}{security_group_id}{alto.ui.RESET}"  # noqa: E501
                 self.output_mgr.log_output(
@@ -445,7 +448,7 @@ class SSHProtocol(Protocol):
 
             # Data to write to JSON
             self.resource_data["resources"].update(
-                {sshResource.SECURITY_GROUP_ID.value: security_group_id},
+                {ec2Resource.SECURITY_GROUP_ID.value: security_group_id},
             )
 
             # Log instance ID template
@@ -456,7 +459,7 @@ class SSHProtocol(Protocol):
                 "Creating EC2 instance",
                 is_substep=True
             )
-            if current_resources.get(sshResource.INSTANCE_ID.value, None) is None:
+            if current_resources.get(ec2Resource.INSTANCE_ID.value, None) is None:
                 instance = ec2_resource.create_instances(
                     InstanceType=instance_type,
                     KeyName=instance_name,
@@ -493,8 +496,8 @@ class SSHProtocol(Protocol):
                 time.sleep(1)
             else:
                 if not Path(INTERNAL_FOLDER / 'ec2.json').is_file():
-                    raise _create_exception(sshResource.INSTANCE_ID.value)
-                instance_id = current_resources[sshResource.INSTANCE_ID.value]
+                    raise _create_exception(ec2Resource.INSTANCE_ID.value)
+                instance_id = current_resources[ec2Resource.INSTANCE_ID.value]
 
                 # Log
                 self.output_mgr.log_output(
@@ -560,4 +563,119 @@ class SSHProtocol(Protocol):
 
 
 class SSMProtocol(Protocol):
-    pass
+
+    def attach_policies_to_role(self,
+        iam_client: Any,
+        policy_names: List[str],
+        iam_role_name: str,
+    ) -> None:
+        """
+        Attach `policy_name` to `iam_role_name`. We use this to make sure our EC2
+        instance can connect to SSM.
+        args:
+            iam_client: IAM client
+            policy names: list of policy names to attach
+            iam_role_name: IAM role to which to attach policies
+        returns:
+            None
+        """
+        for _policy in policy_names:
+            policy_arn = f"arn:aws:iam::aws:policy/{_policy}"
+            iam_client.attach_role_policy(
+                RoleName=iam_role_name,
+                PolicyArn=policy_arn
+            )
+        return None
+
+    def create_instance_profile(self,
+        iam_client: Any,
+        iam_role_name: str,
+        instance_name: str,
+    ) -> str:
+        """
+        Create instance profile. We use this to make sure our EC2 instance can connect
+        to SSM.
+
+        args:
+            iam_client: IAM client
+            iam_role_name: IAM role to create
+            instance_name: instance name
+        returns:
+            IAM role ARN
+        """
+        # Create IAM Role for SSM
+        role_policy_document = {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Principal": {"Service": "ec2.amazonaws.com"},
+                    "Action": "sts:AssumeRole"
+                }
+            ]
+        }
+        role_response = iam_client.create_role(
+            RoleName=iam_role_name,
+            AssumeRolePolicyDocument=json.dumps(role_policy_document)
+        )
+
+        # Log
+        role_arn: str = str(role_response["Role"]["Arn"])
+        role_arn_log = f"{alto.ui.MAGENTA}{role_arn}{alto.ui.RESET}"
+        iam_role_name_log = f"{alto.ui.MAGENTA}{iam_role_name}{alto.ui.RESET}"
+        self.output_mgr.log_output(
+            agent_img_name=instance_name,
+            stage=alto.ui.StageEnum.AGENT_BUILD,
+            level="info",
+            msg=f"Created IAM Role {iam_role_name_log} created with ARN {role_arn_log}",
+        )
+
+        # Attach SSM policies to the role
+        self.attach_policies_to_role(
+            iam_client,
+            ["AmazonSSMFullAccess", "AmazonSSMManagedEC2InstanceDefaultPolicy"],
+            iam_role_name
+        )
+
+        # Attach IAM Role to EC2 instance
+        instance_profile_response = iam_client.create_instance_profile(
+            InstanceProfileName=iam_role_name
+        )
+        instance_profile_name = instance_profile_response['InstanceProfile']['InstanceProfileName']  # noqa: E501
+        iam_client.add_role_to_instance_profile(
+            InstanceProfileName=instance_profile_name,
+            RoleName=iam_role_name
+        )
+
+        # Log
+        instance_profile_name_log = f"{alto.ui.MAGENTA}{instance_profile_name}{alto.ui.RESET}"  # noqa: E501
+        self.output_mgr.log_output(
+            agent_img_name=instance_name,
+            stage=alto.ui.StageEnum.AGENT_BUILD,
+            level="info",
+            msg=f"Attached IAM Role {iam_role_name_log} attached to Instance Profile {instance_profile_name_log}"  # noqa: E501
+        )
+        return role_arn
+
+    def create_instance(self,
+        current_data: Dict[str, Any],
+        ec2_client: Any,
+        ec2_resource: Any,
+        instance_id: Optional[str],
+        instance_name: str,
+        instance_type: str,
+        ami_image: str,
+    ):
+        """
+        Create EC2 instance
+
+        args:
+            current_data: current EC2 resources/files data
+            ec2_client: Boto3 AWS EC2 client
+            ec2_resource: Boto3 AWS EC2 resource
+            instance_id: EC2 instance ID
+            instance_name: name of EC2 instance
+            instance_type: EC2 instance types
+        returns:
+            EC2 response
+        """

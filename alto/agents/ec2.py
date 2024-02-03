@@ -19,8 +19,8 @@ from alto.constants import (
     DEFAULT_LOGGER_NAME
 )
 from alto.mixins.aws_mixins import (
-    sshFile,
-    sshResource,
+    ec2File,
+    ec2Resource,
     State,
 )
 import alto.ui
@@ -88,7 +88,7 @@ class Ec2(Agent):
     pem_key_path: Path
 
     # All SSM resources (non-overlapping with SSH resources)
-    instance_profile: str
+    iam_role_arn: str
 
     def __init__(self,
         args: argparse.Namespace,
@@ -149,12 +149,12 @@ class Ec2(Agent):
 
         # Set resource / file attributes
         data = data[self.instance_name]
-        for x in sshResource:
+        for x in ec2Resource:
             if x.value in data["resources"].keys():
                 self.__setattr__(x.value, data["resources"][x.value])
             else:
                 self.__setattr__(x.value, None)
-        for y in sshFile:
+        for y in ec2File:
             if y.value in data["files"].keys():
                 self.__setattr__(y.value, Path(data["files"][y.value]))
             else:
@@ -251,38 +251,38 @@ class Ec2(Agent):
             files = json_data.get("files", {})
 
             # Key name
-            if sshResource.KEY_PAIR.value in resources.keys():
+            if ec2Resource.KEY_PAIR.value in resources.keys():
                 self.output_mgr.step_starting("Deleting key pair...")
                 pem_key_path = files["pem_key_path"]
                 self.ec2_client.delete_key_pair(
-                    KeyName=resources[sshResource.KEY_PAIR.value]
+                    KeyName=resources[ec2Resource.KEY_PAIR.value]
                 )
                 os.unlink(str(pem_key_path))
-                del_resources[sshResource.KEY_PAIR.value] = resources[sshResource.KEY_PAIR.value]  # noqa
+                del_resources[ec2Resource.KEY_PAIR.value] = resources[ec2Resource.KEY_PAIR.value]  # noqa
                 self.output_mgr.step_completed(
                     "Deleted key pair!",
                     symbol=Symbol.DELETED
                 )
 
             # Instance
-            if sshResource.INSTANCE_ID.value in resources.keys():
+            if ec2Resource.INSTANCE_ID.value in resources.keys():
                 self.output_mgr.step_starting("Deleting EC2 instance...")
                 self.ec2_client.terminate_instances(
-                    InstanceIds=[resources[sshResource.INSTANCE_ID.value]]
+                    InstanceIds=[resources[ec2Resource.INSTANCE_ID.value]]
                 )
-                del_resources[sshResource.INSTANCE_ID.value] = resources[sshResource.INSTANCE_ID.value]  # noqa
+                del_resources[ec2Resource.INSTANCE_ID.value] = resources[ec2Resource.INSTANCE_ID.value]  # noqa
                 self.output_mgr.step_completed(
                     "Deleted EC2 instance!",
                     symbol=Symbol.DELETED
                 )
 
             # Security group
-            if sshResource.SECURITY_GROUP_ID.value in resources.keys():
+            if ec2Resource.SECURITY_GROUP_ID.value in resources.keys():
                 self.output_mgr.step_starting("Deleting security group...")
                 while True:
                     try:
                         self.ec2_client.delete_security_group(
-                            GroupId=resources[sshResource.SECURITY_GROUP_ID.value]
+                            GroupId=resources[ec2Resource.SECURITY_GROUP_ID.value]
                         )
                         break
                     except botocore.exceptions.ClientError as e:
@@ -291,7 +291,7 @@ class Ec2(Agent):
                         else:
                             raise e
 
-                del_resources[sshResource.SECURITY_GROUP_ID.value] = resources[sshResource.SECURITY_GROUP_ID.value]  # noqa
+                del_resources[ec2Resource.SECURITY_GROUP_ID.value] = resources[ec2Resource.SECURITY_GROUP_ID.value]  # noqa
                 self.output_mgr.step_completed(
                     "Deleted security group!",
                     symbol=Symbol.DELETED
@@ -325,21 +325,21 @@ class Ec2(Agent):
         resources: Dict[str, Optional[Dict[str, str]]] = {}
 
         # Key pair
-        resources[sshResource.KEY_PAIR.value] = None
+        resources[ec2Resource.KEY_PAIR.value] = None
         keypairs = ec2_client.describe_key_pairs()
         for kp in keypairs["KeyPairs"]:
             if kp["KeyName"] == instance_name:
-                resources[sshResource.KEY_PAIR.value] = kp
+                resources[ec2Resource.KEY_PAIR.value] = kp
 
         # Security groups
-        resources[sshResource.SECURITY_GROUP_ID.value] = None
+        resources[ec2Resource.SECURITY_GROUP_ID.value] = None
         security_groups = ec2_client.describe_security_groups()
         for sg in security_groups["SecurityGroups"]:
             if sg["GroupName"] == instance_name:
-                resources[sshResource.SECURITY_GROUP_ID.value] = sg
+                resources[ec2Resource.SECURITY_GROUP_ID.value] = sg
 
         # Instance
-        resources[sshResource.INSTANCE_ID.value] = None
+        resources[ec2Resource.INSTANCE_ID.value] = None
         response = ec2_client.describe_instances()
         reservations = response["Reservations"]
         if len(reservations) > 0 and instance_id is not None:
@@ -370,7 +370,7 @@ class Ec2(Agent):
 
                         # Otherwise, set to True. mypy doesn't recognize that
                         # `instance_id` is non-null if we reach this point in the code.
-                        resources[sshResource.INSTANCE_ID.value] = instance_id  # type: ignore # noqa
+                        resources[ec2Resource.INSTANCE_ID.value] = instance_id  # type: ignore # noqa
 
         # Return the resources
         return resources
@@ -589,12 +589,12 @@ class Ec2(Agent):
             self.update_json(new_data)
 
             # Update class attributes
-            setattr(self, sshResource.INSTANCE_ID.value, new_data["resources"][sshResource.INSTANCE_ID.value])  # noqa: E501
-            setattr(self, sshResource.PUBLIC_DNS_NAME.value, new_data["resources"][sshResource.PUBLIC_DNS_NAME.value])  # noqa: E501
-            setattr(self, sshResource.SECURITY_GROUP_ID.value, new_data["resources"][sshResource.SECURITY_GROUP_ID.value])  # noqa: E501
-            setattr(self, sshResource.KEY_PAIR.value, new_data["resources"][sshResource.KEY_PAIR.value])  # noqa: E501
-            setattr(self, sshResource.STATE.value, new_data["resources"][sshResource.STATE.value])  # noqa: E501
-            setattr(self, sshFile.PEM_KEY_PATH.value, new_data["files"][sshFile.PEM_KEY_PATH.value])  # noqa: E501
+            setattr(self, ec2Resource.INSTANCE_ID.value, new_data["resources"][ec2Resource.INSTANCE_ID.value])  # noqa: E501
+            setattr(self, ec2Resource.PUBLIC_DNS_NAME.value, new_data["resources"][ec2Resource.PUBLIC_DNS_NAME.value])  # noqa: E501
+            setattr(self, ec2Resource.SECURITY_GROUP_ID.value, new_data["resources"][ec2Resource.SECURITY_GROUP_ID.value])  # noqa: E501
+            setattr(self, ec2Resource.KEY_PAIR.value, new_data["resources"][ec2Resource.KEY_PAIR.value])  # noqa: E501
+            setattr(self, ec2Resource.STATE.value, new_data["resources"][ec2Resource.STATE.value])  # noqa: E501
+            setattr(self, ec2File.PEM_KEY_PATH.value, new_data["files"][ec2File.PEM_KEY_PATH.value])  # noqa: E501
 
             # Return the data
             return new_data
@@ -755,7 +755,7 @@ class Ec2(Agent):
         cmd: List[str]
     ):
         # Attributes
-        security_group_id_attr = getattr(self, sshResource.SECURITY_GROUP_ID.value)
+        security_group_id_attr = getattr(self, ec2Resource.SECURITY_GROUP_ID.value)
 
         # Open a subprocess and stream the logs
         out, err, returncode = self.stream_logs(cmd, StageEnum.AGENT_BUILD)
@@ -865,7 +865,7 @@ class Ec2(Agent):
 
         # Create the instance. If we're not streaming all logs, then indicate to the
         # user that we're building resources
-        instance_id_attr = getattr(self, sshResource.INSTANCE_ID.value)
+        instance_id_attr = getattr(self, ec2Resource.INSTANCE_ID.value)
         self.output_mgr.step_starting("[dodger_blue2]Building resources...[/dodger_blue2]")  # noqa
         data = self.create_instance(
             self.ec2_client,
@@ -932,10 +932,10 @@ class Ec2(Agent):
         Run the project using the EC2 agent
         """
         # Attributes
-        instance_id_attr = getattr(self, sshResource.INSTANCE_ID.value)
-        security_group_id_attr = getattr(self, sshResource.SECURITY_GROUP_ID.value)
-        public_dns_name_attr = getattr(self, sshResource.PUBLIC_DNS_NAME.value)
-        pem_key_path_attr = getattr(self, sshFile.PEM_KEY_PATH.value)
+        instance_id_attr = getattr(self, ec2Resource.INSTANCE_ID.value)
+        security_group_id_attr = getattr(self, ec2Resource.SECURITY_GROUP_ID.value)
+        public_dns_name_attr = getattr(self, ec2Resource.PUBLIC_DNS_NAME.value)
+        pem_key_path_attr = getattr(self, ec2File.PEM_KEY_PATH.value)
 
         # Full command
         full_cmd = self.entrypoint.build_command()
@@ -1018,7 +1018,7 @@ class Ec2(Agent):
         self.output_mgr.step_starting("[dodger_blue2]Deleting resources...[/dodger_blue2]")  # noqa
 
         # Key pair
-        key_pair_attr = getattr(self, sshResource.KEY_PAIR.value)
+        key_pair_attr = getattr(self, ec2Resource.KEY_PAIR.value)
         if key_pair_attr is None:
             self.output_mgr.log_output(
                 agent_img_name=self.instance_name,
@@ -1028,7 +1028,7 @@ class Ec2(Agent):
             )
 
         else:
-            pem_key_path_attr = getattr(self, sshFile.PEM_KEY_PATH.value)
+            pem_key_path_attr = getattr(self, ec2File.PEM_KEY_PATH.value)
             self.output_mgr.step_starting(
                 "Deleting key-pair...",
                 is_substep=True
@@ -1061,7 +1061,7 @@ class Ec2(Agent):
                 )
 
         # Instance
-        instance_id_attr = getattr(self, sshResource.INSTANCE_ID.value)
+        instance_id_attr = getattr(self, ec2Resource.INSTANCE_ID.value)
         if instance_id_attr is None:
             self.output_mgr.log_output(
                 agent_img_name=self.instance_name,
@@ -1091,7 +1091,7 @@ class Ec2(Agent):
             )
 
         # Security group
-        security_group_id_attr = getattr(self, sshResource.SECURITY_GROUP_ID.value)
+        security_group_id_attr = getattr(self, ec2Resource.SECURITY_GROUP_ID.value)
         if security_group_id_attr is None:
             self.output_mgr.log_output(
                 agent_img_name=self.instance_name,
