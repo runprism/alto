@@ -7,7 +7,6 @@ Docker Image.
 ###########
 
 # Standard library imports
-import docker
 import os
 from pathlib import Path
 import re
@@ -42,20 +41,6 @@ import logging
 logger = logging.getLogger(DEFAULT_LOGGER_NAME)
 
 
-#################
-# Docker client #
-#################
-
-# For testing
-SERVER_URL = os.environ.get("__ALTO_DOCKER_SERVER_URL__", None)
-if SERVER_URL is not None:
-    client = docker.from_env(environment={
-        "DOCKER_HOST": SERVER_URL
-    })
-else:
-    client = docker.from_env()
-
-
 ####################
 # Class definition #
 ####################
@@ -63,12 +48,26 @@ else:
 
 class Docker(BaseImage, ConfigMixin):
 
+    # Place server URL and client inside the class definition
+    import docker
+    SERVER_URL = os.environ.get("__ALTO_DOCKER_SERVER_URL__", None)
+    if SERVER_URL is not None:
+        CLIENT = docker.from_env(environment={
+            "DOCKER_HOST": SERVER_URL
+        })
+    else:
+        CLIENT = docker.from_env()
+
+    # Other class attributes
+    image_version: Optional[str] = None
+
     def __init__(self,
         alto_wkdir: Path,
         image_name: str,
         image_conf: Dict[str, Any],
         output_mgr: OutputManager
     ):
+        import docker
         BaseImage.__init__(
             self, alto_wkdir, image_name, image_conf, output_mgr
         )
@@ -76,18 +75,17 @@ class Docker(BaseImage, ConfigMixin):
         # Image name, version
         alto_project_name = self.alto_wkdir.name.replace("_", "-")
         self.image_name = f"{alto_project_name}-{self.image_name}"
-        self.image_version: Optional[str] = None
 
         # Create a low-level API client. We need this to capture the logs when
         # actually building the image.
-        if SERVER_URL is not None:
-            self.build_client = docker.APIClient(base_url=SERVER_URL)
+        if self.SERVER_URL is not None:
+            self.build_client = docker.APIClient(base_url=self.SERVER_URL)
         else:
             self.build_client = docker.APIClient(base_url=self.server_url)
 
         # Iterate through current images and get all images that resemble our image
         # name.
-        img_list = client.images.list()
+        img_list = self.CLIENT.images.list()
         self.prev_images = []
         self.prev_img_names: List[str] = []
         self.prev_img_versions: List[str] = []
@@ -374,7 +372,7 @@ class Docker(BaseImage, ConfigMixin):
             self.prev_images = list(set(self.prev_images))
             for img in self.prev_images:
                 try:
-                    client.images.remove(
+                    self.CLIENT.images.remove(
                         image=img,
                         force=True
                     )
@@ -388,7 +386,7 @@ class Docker(BaseImage, ConfigMixin):
 
         # If nothing has gone wrong, then we should be able to get the image
         try:
-            _ = client.images.get(
+            _ = self.CLIENT.images.get(
                 name=f"{self.image_name}:{new_img_version}",
             )
         except Exception as e:
@@ -400,7 +398,7 @@ class Docker(BaseImage, ConfigMixin):
 
         # Push the image
         self.registry.push(
-            docker_client=client,
+            docker_client=self.CLIENT,
             image_name=self.image_name,
             image_tag=self.image_version
         )
@@ -412,7 +410,7 @@ class Docker(BaseImage, ConfigMixin):
         self.output_mgr.step_starting("[dodger_blue2]Deleting image[/dodger_blue2]")
 
         # Remove all images with the label "stage=intermediate"
-        images = client.images.list(
+        images = self.CLIENT.images.list(
             filters={"label": "stage=intermediate"}
         )
         for img in images:
@@ -420,7 +418,7 @@ class Docker(BaseImage, ConfigMixin):
                 for curr_tag in img.tags:
                     if self.image_name in curr_tag and self.image_version in curr_tag:
                         try:
-                            client.images.remove(
+                            self.CLIENT.images.remove(
                                 image=curr_tag,
                                 force=True,
                             )

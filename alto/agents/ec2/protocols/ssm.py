@@ -14,6 +14,7 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 
 # Alto imports
+from alto.constants import EC2_INSTANCE_TYPE
 from alto.mixins.aws_mixins import (
     State,
     ec2Resource,
@@ -21,6 +22,7 @@ from alto.mixins.aws_mixins import (
 from alto.agents.ec2.protocols.base import Protocol
 from alto.entrypoints import BaseEntrypoint
 from alto.images import BaseImage
+from alto.images.docker_image import Docker
 import alto.ui
 
 # Type hints
@@ -159,11 +161,11 @@ class SSMProtocol(Protocol):
         )
 
         # Attach IAM Role to EC2 instance
+        add_role: bool = True
         try:
             iam_ip_resp = iam_client.create_instance_profile(
                 InstanceProfileName=iam_instance_profile_name
             )["InstanceProfile"]
-            add_role: bool = True
 
         # If the profile already exists, then grab it
         except Exception as e:
@@ -174,10 +176,9 @@ class SSMProtocol(Protocol):
                         iam_ip_resp = _ip
 
                         # See if we need to add the role
-                        add_role: bool = True
                         for _role in _ip["Roles"]:
                             if _role["RoleName"] == iam_role_name:
-                                add_role: bool = False
+                                add_role = False
             else:
                 raise e
 
@@ -207,7 +208,7 @@ class SSMProtocol(Protocol):
         current_data: Dict[str, Any],
         ec2_client: EC2Client,
         instance_name: str,
-        instance_type: str,
+        instance_type: EC2_INSTANCE_TYPE,
         ami_image: str,
     ):
         current_resources = current_data.get("resources", {})
@@ -321,11 +322,15 @@ class SSMProtocol(Protocol):
             )
 
         # Instance data
-        resp = self.check_instance_data(instance_id)
+        instance_data = self.check_instance_data(instance_id)
+        if instance_data is None:
+            raise ValueError(
+                f"Failed to create instance `{instance_id}`"
+            )
 
         # If the instance exists and is running, then just return
-        if len(resp.keys()) > 0 and resp["state"] in [State.PENDING, State.RUNNING]:  # noqa: E501
-            while resp["state"] == State.PENDING:
+        if len(instance_data.keys()) > 0 and instance_data["state"] in [State.PENDING, State.RUNNING]:  # noqa: E501
+            while instance_data["state"] == State.PENDING:
 
                 # Log
                 log_pending_status = f"{alto.ui.YELLOW}pending{alto.ui.RESET}"  # noqa: E501
@@ -335,21 +340,25 @@ class SSMProtocol(Protocol):
                     level="info",
                     msg=f"Instance {log_instance_id_template.format(instance_id=instance_id)} is {log_pending_status}... checking again in 5 seconds"  # noqa: E501
                 )
-                resp = self.check_instance_data(instance_id)
+                instance_data = self.check_instance_data(instance_id)
+                if instance_data is None:
+                    raise ValueError(
+                        f"Failed to create instance `{instance_id}`"
+                    )
 
         # If the state exiss but has stopped, then restart it
-        elif len(resp.keys()) > 0 and resp["state"] in [State.STOPPED, State.STOPPING]:  # noqa: E501
+        elif len(instance_data.keys()) > 0 and instance_data["state"] in [State.STOPPED, State.STOPPING]:  # noqa: E501
             self.restart_instance(
                 ec2_client,
-                resp["state"],
-                resp["instance_id"]
+                instance_data["state"],
+                instance_data["instance_id"]
             )
 
         self.resource_data["resources"].update(
             {
                 ec2Resource.INSTANCE_ID.value: instance_id,
-                ec2Resource.PUBLIC_DNS_NAME.value: resp["public_dns_name"],
-                ec2Resource.STATE.value: resp["state"]
+                ec2Resource.PUBLIC_DNS_NAME.value: instance_data["public_dns_name"],
+                ec2Resource.STATE.value: instance_data["state"]
             }
         )
 
@@ -395,7 +404,7 @@ class SSMProtocol(Protocol):
 
             # Upload files and keep track of paths
             s3_client.upload_file(
-                local_file_dir,
+                str(local_file_dir),
                 bucket_name,
                 s3_path
             )
@@ -484,17 +493,16 @@ class SSMProtocol(Protocol):
                     raise e
 
         # Keep retrieving and processing new log events
-        curr_token: Optional[str] = None
         while 'nextForwardToken' in log_events_resp:
-            next_token = log_events_resp["nextForwardToken"]
-            if curr_token == next_token:
-                break
-
+            curr_token = log_events_resp["nextForwardToken"]
             log_events_resp = logs_client.get_log_events(
                 logGroupName=log_group_name,
                 logStreamName=log_stream_name,
-                nextToken=next_token
+                nextToken=curr_token
             )
+            next_token = log_events_resp["nextForwardToken"]
+            if curr_token == next_token:
+                break
             for ev in log_events_resp["events"]:
                 msg = ev["message"]
                 for line in re.split(r'[\n\r]', msg):
@@ -506,7 +514,6 @@ class SSMProtocol(Protocol):
                         renderable_type=f"[dodger_blue2]{msg}[/dodger_blue2]" if stage == alto.ui.StageEnum.AGENT_RUN else None,  # noqa
                         is_step_completion=False,
                     )
-            curr_token = next_token
 
             # Add a delay to avoid rate limiting
             time.sleep(1)
@@ -647,9 +654,16 @@ class SSMProtocol(Protocol):
             None
         )
 
+        # All command components
+        docker_cmds: List[str] = []
+        virtual_environments_cmds: List[str] = []
+        requirements_txt_cmds: List[str] = []
+        cp_cmds: List[str] = []
+        env_var_cmds: List[str] = []
+
         # If we're using an image, all of our agent's data (e.g., requirements,
         # dependencies, mounts, etc.) will stored on the image.
-        if image is not None and image.image_conf["type"] == "docker":
+        if image is not None and isinstance(image, Docker):
             docker_cmds = [
                 f"docker --version &> /dev/null",                             # noqa: F541, E501
                 f"exit_code=$?",                                              # noqa: F541, E501
@@ -674,17 +688,9 @@ class SSMProtocol(Protocol):
                 f"docker pull {repository}/{image_name}"
             ])
 
-            # All other commands
-            virtual_environments_cmds = []
-            requirements_txt_cmds = []
-            cp_cmds = []
-            env_var_cmds = []
-
         # Otherwise, we need to build commands for virtual environments, dependencies,
         # and mounts.
         else:
-            docker_cmds = []
-
             # Skip Python version, for now...
             python_cli = "3"
 
@@ -720,7 +726,6 @@ class SSMProtocol(Protocol):
             # that we can copy these files into our SSM-managed EC2 instance.
             s3_paths: List[str] = []
             full_paths: List[str] = []
-
             for _lm in local_mounts:
                 _s3, _full = self.upload_file_or_directory_to_s3(
                     Path(_lm),
@@ -729,15 +734,14 @@ class SSMProtocol(Protocol):
                 )
                 s3_paths.extend(_s3)
                 full_paths.extend(_full)
-
-            cp_cmds = []
-            for _s3, _full in zip(s3_paths, full_paths):
-                cp_cmds.append(f"aws s3 cp s3://{bucket}/{_s3} /home/ssm-user/{_full}")
+            for _s3p, _fullp in zip(s3_paths, full_paths):
+                cp_cmds.append(
+                    f"aws s3 cp s3://{bucket}/{_s3p} /home/ssm-user/{_fullp}"
+                )
 
             # Environment variable -- we'll need to do this *every* time we run a
             # command in SSM, since these keys are forgotten after each session. Maybe
             # in the future we can use the parameter store?
-            env_var_cmds = []
             for key, value in env_vars.items():
                 cmds = [
                     f"export {key}={value}",
@@ -786,9 +790,12 @@ class SSMProtocol(Protocol):
             )
             return 1
 
-        # Build the `run` command
-        if image is not None and image.image_conf["type"] == "docker":
-            docker_cmds = []
+        # Command components
+        docker_cmds: List[str] = []
+        env_var_cmds: List[str] = []
+        entrypoint_cmd: List[str] = []
+
+        if image is not None and isinstance(image, Docker):
             registry, _, _ = image.registry.get_login_info()
             repository = registry.replace("https://", "")
             image_name = f"{image.image_name}:{image.image_version}"
@@ -801,16 +808,9 @@ class SSMProtocol(Protocol):
                 f'    echo "Failed to start the container."',               # noqa: F541, E501
                 f'fi'                                                       # noqa: F541, E501
             ])
-
-            env_var_cmds = []
-            entrypoint_cmd = []
-
         else:
-            docker_cmds = []
-
             # We need to re-define our environment variables prior to running our
             # command
-            env_var_cmds = []
             env_vars: Dict[str, str] = {}
             if "env" in self.agent_conf.keys():
                 env_vars = self.agent_conf["env"]

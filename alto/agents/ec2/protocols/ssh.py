@@ -7,15 +7,17 @@ import botocore
 from pathlib import Path
 import re
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 import urllib
 import subprocess
 
 # Alto imports
 from alto.agents.ec2.protocols.base import Protocol
 from alto.command import AgentCommand
+from alto.constants import EC2_INSTANCE_TYPE
 from alto.entrypoints import BaseEntrypoint
 from alto.images import BaseImage
+from alto.images.docker_image import Docker
 from alto.mixins.aws_mixins import (
     State,
     IpAddressType,
@@ -49,16 +51,16 @@ class SSHProtocol(Protocol):
         """
 
         # Default VPC
-        response = ec2_client.describe_vpcs()
-        vpc_id = response.get('Vpcs', [{}])[0].get('VpcId', '')
+        vpc_response = ec2_client.describe_vpcs()
+        vpc_id = vpc_response.get('Vpcs', [{}])[0].get('VpcId', '')
 
         # Create the security group
-        response = ec2_client.create_security_group(
+        sg_response = ec2_client.create_security_group(
             GroupName=instance_name,
             Description=f'VPC for {instance_name} EC2 agent',
             VpcId=vpc_id
         )
-        security_group_id = response['GroupId']
+        security_group_id = sg_response['GroupId']
 
         # Add an ingress rule
         try:
@@ -134,33 +136,36 @@ class SSHProtocol(Protocol):
         """
         ip_address_type = self.check_ip_address_type(external_ip)
 
+        from typing import Sequence
+        from mypy_boto3_ec2.type_defs import IpPermissionTypeDef, IpRangeTypeDef
+
+        ip_permissions: Sequence[IpPermissionTypeDef]
+
         # Add rule
         if ip_address_type == IpAddressType('ipv4'):
             if not self.args.whitelist_all:
-                ip_ranges = {'CidrIp': f'{external_ip}/32'}
+                ip_ranges = IpRangeTypeDef(CidrIp=f'{external_ip}/32')
             else:
                 external_ip = "0.0.0.0"
-                ip_ranges = {'CidrIp': '0.0.0.0/0'}
-            ip_permissions = [
-                {
-                    'IpProtocol': 'tcp',
-                    'FromPort': 22,
-                    'ToPort': 22,
-                    'IpRanges': [ip_ranges]
-                },
-            ]
+                ip_ranges = IpRangeTypeDef(CidrIp='0.0.0.0/0')
+            perm = IpPermissionTypeDef(
+                IpProtocol='tcp',
+                FromPort=22,
+                ToPort=22,
+                IpRanges=[ip_ranges]
+            )
+            ip_permissions = [perm]
 
         # We've had problems in the past with SSHing into an EC2 instance from IPv6
         # addresses. Therefore, just default to allowing SSH connections from any IP.
         else:
-            ip_permissions = [
-                {
-                    'IpProtocol': 'tcp',
-                    'FromPort': 22,
-                    'ToPort': 22,
-                    'Ipv6Ranges': [{'CidrIpv6': '::/0'}]
-                },
-            ]
+            perm = IpPermissionTypeDef(
+                IpProtocol='tcp',
+                FromPort=22,
+                ToPort=22,
+                Ipv6Ranges=[{'CidrIpv6': '::/0'}]
+            )
+            ip_permissions = [perm]
 
         try:
             _ = ec2_client.authorize_security_group_ingress(
@@ -218,15 +223,15 @@ class SSHProtocol(Protocol):
                 # Check if SSH traffic from the current IP address is allowed
                 if external_ip_type == IpAddressType('ipv4'):
                     ip_search = "0.0.0.0/0" if self.args.whitelist_all else f"{external_ip}/32"  # noqa: E501
-                    ip_ranges = ingress_permissions["IpRanges"]
-                    for ipr in ip_ranges:
-                        if ip_search in ipr["CidrIp"]:
+                    ipv4__ranges = ingress_permissions["IpRanges"]
+                    for ipv4r in ipv4__ranges:
+                        if ip_search in ipv4r["CidrIp"]:
                             ip_allowed = True
                 else:
                     ip_search = "::/0"
-                    ip_ranges = ingress_permissions["Ipv6Ranges"]
-                    for ipr in ip_ranges:
-                        if ip_search in ipr["CidrIpv6"]:
+                    ipv6_ranges = ingress_permissions["Ipv6Ranges"]
+                    for ipv6r in ipv6_ranges:
+                        if ip_search in ipv6r["CidrIpv6"]:
                             ip_allowed = True
 
         # If SSH traffic from the current IP address it not allowed, then authorize it.
@@ -242,7 +247,7 @@ class SSHProtocol(Protocol):
         current_data: Dict[str, Any],
         ec2_client: EC2Client,
         instance_name: str,
-        instance_type: str,
+        instance_type: EC2_INSTANCE_TYPE,
         ami_image: str,
     ):
         """
@@ -402,19 +407,23 @@ class SSHProtocol(Protocol):
                 )
 
             # Instance data
-            resp = self.check_instance_data(instance_id)
+            instance_data = self.check_instance_data(instance_id)
+            if instance_data is None:
+                raise ValueError(
+                    f"Failed to create instance `{instance_id}`"
+                )
 
             # If the instance exists but its key-name is not `instance_name` (this
             # really should never happen unless the user manually creates an EC2
             # instance that has the same name), then raise an error
-            if len(resp.keys()) > 0 and resp["key_name"] != instance_name:
+            if len(instance_data.keys()) > 0 and instance_data["key_name"] != instance_name:  # noqa: E501
                 raise ValueError(
-                    f"unrecognized key `{resp['key_name']}`...the agent requires key `{instance_name}.pem`"  # noqa: E501
+                    f"unrecognized key `{instance_data['key_name']}`...the agent requires key `{instance_name}.pem`"  # noqa: E501
                 )
 
             # If the instance exists and is running, then just return
-            elif len(resp.keys()) > 0 and resp["state"] in [State.PENDING, State.RUNNING]:  # noqa: E501
-                while resp["state"] == State.PENDING:
+            elif len(instance_data.keys()) > 0 and instance_data["state"] in [State.PENDING, State.RUNNING]:  # noqa: E501
+                while instance_data["state"] == State.PENDING:
 
                     # Log
                     log_pending_status = f"{alto.ui.YELLOW}pending{alto.ui.RESET}"  # noqa: E501
@@ -424,23 +433,27 @@ class SSHProtocol(Protocol):
                         level="info",
                         msg=f"Instance {log_instance_id_template.format(instance_id=instance_id)} is {log_pending_status}... checking again in 5 seconds"  # noqa: E501
                     )
-                    resp = self.check_instance_data(instance_id)
+                    instance_data = self.check_instance_data(instance_id)
+                    if instance_data is None:
+                        raise ValueError(
+                            f"Failed to create instance `{instance_id}`"
+                        )
                     time.sleep(5)
 
             # If the state exiss but has stopped, then restart it
-            elif len(resp.keys()) > 0 and resp["state"] in [State.STOPPED, State.STOPPING]:  # noqa: E501
+            elif len(instance_data.keys()) > 0 and instance_data["state"] in [State.STOPPED, State.STOPPING]:  # noqa: E501
                 self.restart_instance(
                     ec2_client,
-                    resp["state"],
-                    resp["instance_id"]
+                    instance_data["state"],
+                    instance_data["instance_id"]
                 )
 
             # Write data
             self.resource_data["resources"].update(
                 {
                     ec2Resource.INSTANCE_ID.value: instance_id,
-                    ec2Resource.PUBLIC_DNS_NAME.value: resp["public_dns_name"],
-                    ec2Resource.STATE.value: resp["state"]
+                    ec2Resource.PUBLIC_DNS_NAME.value: instance_data["public_dns_name"],
+                    ec2Resource.STATE.value: instance_data["state"]
                 }
             )
 
@@ -483,7 +496,7 @@ class SSHProtocol(Protocol):
         cmd: List[str],
         instance_name: str,
         stage: alto.ui.StageEnum,
-    ):
+    ) -> Tuple[Any, Any, int]:
         """
         Stream Bash script logs. We use bash scripts to run our `apply` and `run`
         commands.
@@ -515,12 +528,12 @@ class SSHProtocol(Protocol):
 
         return process.stdout, process.stderr, process.returncode
 
-    def set_apply_command_attributes(self, image: BaseImage):
+    def set_apply_command_attributes(self, image: Optional[BaseImage]):
         """
         Set the acceptable apply command parameters
         """
         # If we're running a Docker image on our EC2 instance, then update the arguments
-        if image is not None and image.image_conf["type"] == "docker":
+        if image is not None and isinstance(image, Docker):
             self.apply_command.set_accepted_apply_optargs(['-p', '-u', '-n'])
 
             # Additional optargs. Note that this function is called AFTER we push our
@@ -535,7 +548,7 @@ class SSHProtocol(Protocol):
             }
             self.apply_command.set_additional_optargs(additional_optargs)
 
-    def set_run_command_attributes(self, image: BaseImage):
+    def set_run_command_attributes(self, image: Optional[BaseImage]):
         """
         Set the acceptable run command parameters
         """
@@ -543,7 +556,7 @@ class SSHProtocol(Protocol):
             raise ValueError("object does not have `run_command` attribute!")
 
         # If we're running a Docker image on our EC2 instance, then update the arguments
-        if image is not None and image.image_conf["type"] == "docker":
+        if image is not None and isinstance(image, Docker):
             self.run_command.set_accepted_apply_optargs(['-p', '-u', '-n', '-f', '-d'])
 
             # Additional optargs. Note that this function is called AFTER we push our
@@ -563,7 +576,7 @@ class SSHProtocol(Protocol):
         instance_name: str,
         ec2_client: EC2Client,
         security_group_id: str,
-    ):
+    ) -> Tuple[Any, Any, int]:
         # Open a subprocess and stream the logs
         out, err, returncode = self.stream_logs(
             cmd, instance_name, alto.ui.StageEnum.AGENT_BUILD
@@ -764,7 +777,7 @@ class SSHProtocol(Protocol):
         # Log anything from stdout that was printed in the project
         for line in out.readlines():
             self.output_mgr.log_output(
-                agent_img_name=self.instance_name,
+                agent_img_name=instance_name,
                 stage=alto.ui.StageEnum.AGENT_RUN,
                 level="info",
                 msg=line.rstrip(),

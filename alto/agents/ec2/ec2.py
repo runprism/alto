@@ -15,7 +15,7 @@ from alto.agents.ec2.protocols import (  # noqa
 )
 from alto.constants import (
     INTERNAL_FOLDER,
-    DEFAULT_LOGGER_NAME
+    DEFAULT_LOGGER_NAME,
 )
 from alto.mixins.aws_mixins import (
     ec2File,
@@ -26,6 +26,7 @@ import alto.ui
 from alto.entrypoints import BaseEntrypoint
 from alto.infras import BaseInfra
 from alto.images import BaseImage
+from alto.images.docker_image import Docker
 from alto.mixins.aws_mixins import (
     AwsMixin
 )
@@ -71,8 +72,6 @@ class IpAddressType(str, Enum):
 
 class Ec2(Agent, AwsMixin):
     instance_name: str
-    AGENT_APPLY_SCRIPT: str
-    AGENT_RUN_SCRIPT: str
     ec2_client: EC2Client
     ec2_resource: EC2ServiceResource
 
@@ -122,7 +121,7 @@ class Ec2(Agent, AwsMixin):
 
             # Use slightly different scripts if the user wants to run a Docker image on
             # their EC2 instance.
-            if image is not None and image.image_conf["type"] == "docker":
+            if image is not None and isinstance(image, Docker):
                 self.protocol.apply_script = f"{scripts_dir}/docker/ec2/apply.sh"
                 self.protocol.run_script = f"{scripts_dir}/docker/ec2/run.sh"
 

@@ -9,10 +9,11 @@ import os
 from pathlib import Path
 import time
 import stat
-from typing import Any, Dict, Optional
+from typing import Any, Optional, TypedDict
 
 # Type hints
 from mypy_boto3_ec2.client import EC2Client
+from mypy_boto3_ec2.type_defs import GroupIdentifierTypeDef
 
 
 class State(str, Enum):
@@ -44,6 +45,14 @@ class ec2Resource(str, Enum):
 
 class ec2File(str, Enum):
     PEM_KEY_PATH = "pem_key_path"
+
+
+class InstanceData(TypedDict):
+    instance_id: str
+    public_dns_name: str
+    key_name: Optional[str]
+    security_groups: list[GroupIdentifierTypeDef]
+    state: State
 
 
 class AwsMixin:
@@ -104,7 +113,7 @@ class AwsMixin:
 
     def restart_instance(self,
         ec2_client,
-        state: State,
+        state: Optional[State],
         instance_id: str,
     ) -> Optional[State]:
         """
@@ -128,6 +137,10 @@ class AwsMixin:
         elif state == State.PENDING:
             while state == State.PENDING:
                 results = self.check_instance_data(instance_id)
+                if results is None:
+                    raise ValueError(
+                        "`start_stopped_instance` called on a nonexistent instance!"  # noqa: E501
+                    )
                 state = results["state"]
                 time.sleep(1)
             return state
@@ -138,6 +151,10 @@ class AwsMixin:
             ec2_client.start_instances(InstanceIds=instance_id)
             while state != State.RUNNING:
                 results = self.check_instance_data(instance_id)
+                if results is None:
+                    raise ValueError(
+                        "`start_stopped_instance` called on a nonexistent instance!"  # noqa: E501
+                    )
                 time.sleep(1)
                 state = results["state"]
             return state
@@ -147,7 +164,7 @@ class AwsMixin:
 
     def check_instance_data(self,
         instance_id: Optional[str]
-    ) -> Dict[str, Any]:
+    ) -> Optional[InstanceData]:
         """
         Check if the instance exists
 
@@ -164,7 +181,7 @@ class AwsMixin:
             }
         """
         ec2_client = boto3.client("ec2")
-        results: Dict[str, Any] = {}
+        results: Optional[InstanceData] = None
 
         # If the instance is None, then return an empty dictionary. This happens if the
         # user is creating their first instance or deleted their previous agent and is
@@ -180,11 +197,13 @@ class AwsMixin:
                 instances = res["Instances"]
                 for inst in instances:
                     if inst["InstanceId"] == instance_id:
-                        results["instance_id"] = instance_id
-                        results["public_dns_name"] = inst["PublicDnsName"]
-                        results["key_name"] = inst.get("KeyName", None)
-                        results["security_groups"] = inst["SecurityGroups"]
-                        results["state"] = State(inst["State"]["Name"])
+                        results = {
+                            "instance_id": instance_id,
+                            "public_dns_name": inst["PublicDnsName"],
+                            "key_name": inst.get("KeyName", None),
+                            "security_groups": inst["SecurityGroups"],
+                            "state": State(inst["State"]["Name"]),
+                        }
 
         # Return
         return results

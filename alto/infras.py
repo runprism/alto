@@ -5,7 +5,7 @@ configuration file.
 
 # Imports
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, get_args
 import re
 import requests
 
@@ -13,7 +13,7 @@ import requests
 from alto.constants import (
     DEFAULT_LOGGER_NAME,
     SUPPORTED_AGENTS,
-    EC2_SUPPORTED_INSTANCE_TYPES,
+    EC2_INSTANCE_TYPE,
     SUPPORTED_EC2_PROTOCOLS,
 )
 from alto.utils import (
@@ -91,7 +91,7 @@ class Ec2(BaseInfra):
 
         # Check for optional keys.
         keys = [
-            ConfigurationKey("instance_type", str, EC2_SUPPORTED_INSTANCE_TYPES),
+            ConfigurationKey("instance_type", str, list(get_args(EC2_INSTANCE_TYPE))),  # noqa
             ConfigurationKey("ami_image", str),
             ConfigurationKey("python_version", [str, int, float]),
             ConfigurationKey("protocol", str, SUPPORTED_EC2_PROTOCOLS),

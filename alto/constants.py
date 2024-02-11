@@ -6,6 +6,7 @@ Constants used throughout the Alto project
 import os
 from pathlib import Path
 import sys
+from typing import Literal
 
 # Version
 VERSION = "0.0.7"
@@ -52,7 +53,7 @@ SUPPORTED_ENTRYPOINTS = [
 
 
 # EC2 supported instance types
-EC2_SUPPORTED_INSTANCE_TYPES = [
+EC2_INSTANCE_TYPE = Literal[
     't1.micro',
     't2.nano',
     't2.micro',
