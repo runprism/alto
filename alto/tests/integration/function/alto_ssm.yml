@@ -1,0 +1,18 @@
+my_cloud_agent:
+  infra:
+    type: ec2
+    instance_type: t2.micro
+    protocol: ssm
+  additional_paths:
+    - /Users/mihirtrivedi/Desktop/test/
+  entrypoint:
+    type: function
+    cmd: main.write_txt_file
+    kwargs:
+      platform: "{{ __platform__ }}"
+      python_version: "{{ __version__ }}"
+  requirements: requirements.txt
+  env:
+    AWS_ACCESS_KEY_ID: "{{ env('AWS_ACCESS_KEY_ID') }}"
+    AWS_SECRET_ACCESS_KEY: "{{ env('AWS_SECRET_ACCESS_KEY') }}"
+    AWS_DEFAULT_REGION: "{{ env('AWS_DEFAULT_REGION') }}"

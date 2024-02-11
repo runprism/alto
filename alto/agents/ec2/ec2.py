@@ -1,7 +1,6 @@
 """
-Docker Agent.
+EC2 agent
 """
-
 
 ###########
 # Imports #
@@ -9,7 +8,7 @@ Docker Agent.
 
 # Alto imports
 from alto.agents.base import Agent
-from alto.agents.protocols import (
+from alto.agents.ec2.protocols import (  # noqa
     Protocol,
     SSHProtocol,
     SSMProtocol,
@@ -26,8 +25,10 @@ from alto.mixins.aws_mixins import (
 import alto.ui
 from alto.entrypoints import BaseEntrypoint
 from alto.infras import BaseInfra
-from alto.command import AgentCommand
 from alto.images import BaseImage
+from alto.mixins.aws_mixins import (
+    AwsMixin
+)
 from alto.output import (
     OutputManager,
     Symbol,
@@ -43,9 +44,7 @@ import json
 import os
 from pathlib import Path
 import re
-import time
 from typing import Any, Dict, List, Optional
-import subprocess
 import urllib.request
 
 # Type hints
@@ -70,25 +69,26 @@ class IpAddressType(str, Enum):
     V6 = "ipv6"
 
 
-class Ec2(Agent):
+class Ec2(Agent, AwsMixin):
     instance_name: str
     AGENT_APPLY_SCRIPT: str
     AGENT_RUN_SCRIPT: str
     ec2_client: EC2Client
     ec2_resource: EC2ServiceResource
 
-    # All SSH resources
+    # EC2 protocol
+    protocol: Protocol
+
+    # All possible EC2 resources
     key_pair: str
     security_group_id: str
     instance_id: str
     public_dns_name: str
     state: State
-
-    # All SSH files
-    pem_key_path: Path
-
-    # All SSM resources (non-overlapping with SSH resources)
     iam_role_arn: str
+
+    # All possible EC2 files
+    pem_key_path: Path
 
     def __init__(self,
         args: argparse.Namespace,
@@ -105,16 +105,34 @@ class Ec2(Agent):
             self, args, alto_wkdir, agent_name, agent_conf, infra, entrypoint, image, output_mgr, mode  # noqa
         )
 
-        # Bash dir
-        scripts_dir = f"{os.path.dirname(__file__)}/scripts"
-        self.AGENT_APPLY_SCRIPT = f"{scripts_dir}/ec2/apply.sh"
-        self.AGENT_RUN_SCRIPT = f"{scripts_dir}/ec2/run.sh"
+        # Create the Protocol
+        user_protocol = self.infra.infra_conf["protocol"]
+        if user_protocol == "ssh":
+            self.protocol = SSHProtocol(
+                self.args,
+                self.infra.infra_conf,
+                agent_conf,
+                self.output_mgr
+            )
 
-        # Use slightly different scripts if the user wants to run a Docker image on
-        # their EC2 instance.
-        if image is not None and image.image_conf["type"] == "docker":
-            self.AGENT_APPLY_SCRIPT = f"{scripts_dir}/docker/ec2/apply.sh"
-            self.AGENT_RUN_SCRIPT = f"{scripts_dir}/docker/ec2/run.sh"
+            # Set the scripts
+            scripts_dir = f"{os.path.dirname(__file__)}/scripts"
+            self.protocol.apply_script = f"{scripts_dir}/ec2/apply.sh"
+            self.protocol.run_script = f"{scripts_dir}/ec2/run.sh"
+
+            # Use slightly different scripts if the user wants to run a Docker image on
+            # their EC2 instance.
+            if image is not None and image.image_conf["type"] == "docker":
+                self.protocol.apply_script = f"{scripts_dir}/docker/ec2/apply.sh"
+                self.protocol.run_script = f"{scripts_dir}/docker/ec2/run.sh"
+
+        elif user_protocol == "ssm":
+            self.protocol = SSMProtocol(
+                self.args,
+                self.infra.infra_conf,
+                agent_conf,
+                self.output_mgr
+            )
 
         # Create the client
         self.aws_cli()
@@ -146,28 +164,6 @@ class Ec2(Agent):
             if self.instance_name not in data.keys():
                 data.update(empty_data)
                 self.write_json(data)
-
-        # Set resource / file attributes
-        data = data[self.instance_name]
-        for x in ec2Resource:
-            if x.value in data["resources"].keys():
-                self.__setattr__(x.value, data["resources"][x.value])
-            else:
-                self.__setattr__(x.value, None)
-        for y in ec2File:
-            if y.value in data["files"].keys():
-                self.__setattr__(y.value, Path(data["files"][y.value]))
-            else:
-                self.__setattr__(y.value, None)
-
-    def set_scripts_paths(self,
-        apply_script: Optional[Path] = None,
-        run_script: Optional[Path] = None,
-    ) -> None:
-        if apply_script is not None:
-            self.AGENT_APPLY_SCRIPT = str(apply_script)
-        if run_script is not None:
-            self.AGENT_RUN_SCRIPT = str(run_script)
 
     def aws_cli(self) -> int:
         """
@@ -253,24 +249,57 @@ class Ec2(Agent):
             # Key name
             if ec2Resource.KEY_PAIR.value in resources.keys():
                 self.output_mgr.step_starting("Deleting key pair...")
-                pem_key_path = files["pem_key_path"]
-                self.ec2_client.delete_key_pair(
-                    KeyName=resources[ec2Resource.KEY_PAIR.value]
+
+                self.delete_key_pair_and_unlink_path(
+                    self.ec2_client,
+                    resources[ec2Resource.KEY_PAIR.value],
+                    Path(files["pem_key_path"]),
                 )
-                os.unlink(str(pem_key_path))
                 del_resources[ec2Resource.KEY_PAIR.value] = resources[ec2Resource.KEY_PAIR.value]  # noqa
+
                 self.output_mgr.step_completed(
                     "Deleted key pair!",
+                    symbol=Symbol.DELETED
+                )
+
+            # Role
+            iam_client = boto3.client("iam")
+            iam_role_name = f"{self.instance_name}-role"
+            if ec2Resource.ROLE_ARN.value in resources.keys():
+                self.output_mgr.step_starting("Deleting IAM role...")
+
+                self.detach_and_delete_iam_role(iam_client, iam_role_name)
+                del_resources[ec2Resource.ROLE_ARN.value] = resources[ec2Resource.ROLE_ARN.value]  # noqa
+
+                self.output_mgr.step_completed(
+                    "Deleted IAM role!",
+                    symbol=Symbol.DELETED
+                )
+
+            # IAM instance profile
+            iam_instance_profile_name = f"{self.instance_name}-profile"
+            if ec2Resource.INSTANCE_PROFILE_ARN.value in resources.keys():
+                self.output_mgr.step_starting("Deleting IAM instance profile...")
+
+                iam_client.delete_instance_profile(
+                    InstanceProfileName=iam_instance_profile_name
+                )
+                del_resources[ec2Resource.INSTANCE_PROFILE_ARN.value] = resources[ec2Resource.INSTANCE_PROFILE_ARN.value]  # noqa
+
+                self.output_mgr.step_completed(
+                    "Deleted IAM instance profile!",
                     symbol=Symbol.DELETED
                 )
 
             # Instance
             if ec2Resource.INSTANCE_ID.value in resources.keys():
                 self.output_mgr.step_starting("Deleting EC2 instance...")
+
                 self.ec2_client.terminate_instances(
                     InstanceIds=[resources[ec2Resource.INSTANCE_ID.value]]
                 )
                 del_resources[ec2Resource.INSTANCE_ID.value] = resources[ec2Resource.INSTANCE_ID.value]  # noqa
+
                 self.output_mgr.step_completed(
                     "Deleted EC2 instance!",
                     symbol=Symbol.DELETED
@@ -279,19 +308,12 @@ class Ec2(Agent):
             # Security group
             if ec2Resource.SECURITY_GROUP_ID.value in resources.keys():
                 self.output_mgr.step_starting("Deleting security group...")
-                while True:
-                    try:
-                        self.ec2_client.delete_security_group(
-                            GroupId=resources[ec2Resource.SECURITY_GROUP_ID.value]
-                        )
-                        break
-                    except botocore.exceptions.ClientError as e:
-                        if "DependencyViolation" in str(e):
-                            time.sleep(5)
-                        else:
-                            raise e
 
+                self.resolve_dependency_violation_and_delete_security_group(
+                    self.ec2_client, resources[ec2Resource.SECURITY_GROUP_ID.value]
+                )
                 del_resources[ec2Resource.SECURITY_GROUP_ID.value] = resources[ec2Resource.SECURITY_GROUP_ID.value]  # noqa
+
                 self.output_mgr.step_completed(
                     "Deleted security group!",
                     symbol=Symbol.DELETED
@@ -457,94 +479,7 @@ class Ec2(Agent):
             )
         return None
 
-    def create_instance(self,
-        ec2_client: Any,
-        ec2_resource: Any,
-        instance_id: Optional[str],
-        instance_name: str,
-        instance_type: str,
-        ami_image: str,
-    ):
-        """
-        Create EC2 instance
-
-        args:
-            ec2_client: Boto3 AWS EC2 client
-            ec2_resource: Boto3 AWS EC2 resource
-            instance_id: EC2 instance ID
-            instance_name: name of EC2 instance
-            instance_type: EC2 instance types
-        returns:
-            EC2 response
-        """
-        protocol: Protocol
-        if self.infra.infra_conf["protocol"] == "ssh":
-            protocol = SSHProtocol(
-                self.args,
-                self.infra.infra_conf,
-                self.output_mgr,
-            )
-        else:
-            protocol = SSMProtocol(  # type: ignore
-                self.args,
-                self.infra.infra_conf,
-                self.output_mgr,
-            )
-
-        # Wrap the whole thing in a single try-except block
-        try:
-            # Our `ec2.json` file should always exist, because it's created upon the
-            # agent's instantiation.
-            ec2_json_path = Path(INTERNAL_FOLDER / 'ec2.json')
-            with open(ec2_json_path, 'r') as f:
-                data = json.loads(f.read())
-            f.close()
-            current_data = data[instance_name]
-
-            # Create the instance using the appropriate protocol
-            new_data = protocol.create_instance(
-                current_data=current_data,
-                ec2_client=ec2_client,
-                ec2_resource=ec2_resource,
-                instance_id=instance_id,
-                instance_name=instance_name,
-                instance_type=instance_type,
-                ami_image=ami_image,
-            )
-            self.update_json(new_data)
-
-            # Update class attributes
-            setattr(self, ec2Resource.INSTANCE_ID.value, new_data["resources"][ec2Resource.INSTANCE_ID.value])  # noqa: E501
-            setattr(self, ec2Resource.PUBLIC_DNS_NAME.value, new_data["resources"][ec2Resource.PUBLIC_DNS_NAME.value])  # noqa: E501
-            setattr(self, ec2Resource.SECURITY_GROUP_ID.value, new_data["resources"][ec2Resource.SECURITY_GROUP_ID.value])  # noqa: E501
-            setattr(self, ec2Resource.KEY_PAIR.value, new_data["resources"][ec2Resource.KEY_PAIR.value])  # noqa: E501
-            setattr(self, ec2Resource.STATE.value, new_data["resources"][ec2Resource.STATE.value])  # noqa: E501
-            setattr(self, ec2File.PEM_KEY_PATH.value, new_data["files"][ec2File.PEM_KEY_PATH.value])  # noqa: E501
-
-            # Return the data
-            return new_data
-
-        # If an error occurs, delete whatever resources may have been created
-        except Exception as e:
-            # Close the live
-            self.output_mgr.step_failed()
-
-            # Update the JSON with the resources that were created, then delete
-            self.update_json(protocol.resource_data)
-            deleted_resources = self.delete_resources_in_json()
-
-            # Log the deleted resources
-            for rs_name, rs_id in deleted_resources.items():
-                self.output_mgr.log_output(
-                    agent_img_name=self.instance_name,
-                    stage=StageEnum.AGENT_DELETE,
-                    level="info",
-                    msg=f"Deleting {rs_name} `{rs_id}`"
-                )
-
-            raise e
-
-    def get_all_local_paths(self,
+    def get_all_local_mounts(self,
         alto_wkdir: Path,
         agent_conf: Dict[str, Any],
     ) -> List[str]:
@@ -569,170 +504,6 @@ class Ec2(Agent):
         # Return all paths
         return [str(alto_wkdir)] + additional_paths
 
-    def _log_output(self,
-        output,
-        stage: StageEnum
-    ):
-        if output:
-            if isinstance(output, str):
-                if not re.findall(r"^[\-]+$", output.rstrip()):
-                    self.output_mgr.log_output(
-                        agent_img_name=self.instance_name,
-                        stage=stage,
-                        level="info",
-                        msg=output.rstrip(),
-                        renderable_type=f"[dodger_blue2]{output.rstrip()}[/dodger_blue2]" if stage == StageEnum.AGENT_RUN else None,  # noqa
-                        is_step_completion=False,
-                    )
-            else:
-                if not re.findall(r"^[\-]+$", output.decode().rstrip()):
-                    self.output_mgr.log_output(
-                        agent_img_name=self.instance_name,
-                        stage=stage,
-                        level="info",
-                        msg=output.decode().rstrip(),
-                        renderable_type=f"[dodger_blue2]{output.decode().rstrip()}[/dodger_blue2]" if stage == StageEnum.AGENT_RUN else None,  # noqa
-                        is_step_completion=False,
-                    )
-
-    def stream_logs(self,
-        cmd: List[str],
-        stage: StageEnum,
-    ):
-        """
-        Stream Bash script logs. We use bash scripts to run our `apply` and `run`
-        commands.
-
-        args:
-            cmd: subprocess command
-            stage: build stage
-            color: color to use in log styling
-            which: one of `build` or `run`
-        returns:
-            subprocess return code
-        """
-        # Open a subprocess and stream the logs
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
-        )
-        while True:
-            output = process.stdout
-            if output is not None:
-                output = output.readline()  # type: ignore
-
-            # Stream the logs
-            if process.poll() is not None:
-                break
-            self._log_output(output, stage)
-
-        return process.stdout, process.stderr, process.returncode
-
-    def set_apply_command_attributes(self):
-        """
-        Set the acceptable apply command parameters
-        """
-        if not hasattr(self, "apply_command"):
-            raise ValueError("object does not have `apply_command` attribute!")
-
-        # If we're running a Docker image on our EC2 instance, then update the arguments
-        if self.image is not None and self.image.image_conf["type"] == "docker":
-            self.apply_command.set_accepted_apply_optargs(['-p', '-u', '-n'])
-
-            # Additional optargs. Note that this function is called AFTER we push our
-            # image to our registry, so our registry configuration should have all the
-            # information we need.
-            registry, username, password = self.image.registry.get_login_info()
-            additional_optargs = {
-                '-a': username,
-                '-z': password,
-                '-r': registry,
-                '-i': f"{self.image.image_name}:{self.image.image_version}"  # type: ignore  # noqa
-            }
-            self.apply_command.set_additional_optargs(additional_optargs)
-
-    def set_run_command_attributes(self):
-        """
-        Set the acceptable run command parameters
-        """
-        if not hasattr(self, "run_command"):
-            raise ValueError("object does not have `run_command` attribute!")
-
-        # If we're running a Docker image on our EC2 instance, then update the arguments
-        if self.image is not None and self.image.image_conf["type"] == "docker":
-            self.run_command.set_accepted_apply_optargs(['-p', '-u', '-n', '-f', '-d'])
-
-            # Additional optargs. Note that this function is called AFTER we push our
-            # image to our registry, so our registry configuration should have all the
-            # information we need.
-            registry, username, password = self.image.registry.get_login_info()
-            additional_optargs = {
-                '-a': username,
-                '-z': password,
-                '-r': registry,
-                '-i': f"{self.image.image_name}:{self.image.image_version}"  # type: ignore # noqa
-            }
-            self.run_command.set_additional_optargs(additional_optargs)
-
-    def _execute_apply_script(self,
-        cmd: List[str]
-    ):
-        # Attributes
-        security_group_id_attr = getattr(self, ec2Resource.SECURITY_GROUP_ID.value)
-
-        # Open a subprocess and stream the logs
-        out, err, returncode = self.stream_logs(cmd, StageEnum.AGENT_BUILD)
-
-        # Log anything from stderr that was printed in the project
-        for line in err.readlines():
-            self.output_mgr.log_output(
-                agent_img_name=self.instance_name,
-                stage=StageEnum.AGENT_BUILD,
-                level="info",
-                msg=line.rstrip()
-            )
-
-        # A return code of 8 indicates that the SSH connection timed out. Try
-        # whitelisting the current IP and try again.
-        if returncode == 8:
-            # For mypy
-            if security_group_id_attr is None:
-                raise ValueError("`security_group_id` is still None!")
-            self.output_mgr.log_output(
-                agent_img_name=self.instance_name,
-                stage=StageEnum.AGENT_BUILD,
-                level="info",
-                msg="SSH connection timed out...checking security group ingress rules and trying again"  # noqa: E501
-            )
-
-            # Add the current IP to the security ingress rules
-            added_ip = self.check_ingress_ip(
-                self.ec2_client, security_group_id_attr
-            )
-
-            # If the current IP address is already whitelisted, then just add
-            # 0.0.0.0/0 to the ingress rules.
-            if added_ip is None:
-                self.args.whitelist_all = True
-                self.output_mgr.log_output(
-                    agent_img_name=self.instance_name,
-                    stage=StageEnum.AGENT_BUILD,
-                    level="info",
-                    msg="Current IP address already whitelisted...whitelisting 0.0.0.0/0"  # noqa: E501
-                )
-                self.add_ingress_rule(
-                    self.ec2_client,
-                    security_group_id_attr,
-                    "0.0.0.0",
-                )
-
-            # Try again
-            out, err, returncode = self.stream_logs(cmd, StageEnum.AGENT_BUILD)
-
-        return out, err, returncode
-
     def apply(self, overrides={}):
         """
         Create the EC2 instance image
@@ -749,9 +520,35 @@ class Ec2(Agent):
         # Infra
         instance_type = self.parse_infra_key(self.infra.infra_conf, "instance_type")
         ami_image = self.parse_infra_key(self.infra.infra_conf, "ami_image")
-        python_version = self.parse_infra_key(self.infra.infra_conf, "python_version")
+
+        # Grab the current resources
+        ec2_json_path = Path(INTERNAL_FOLDER / 'ec2.json')
+        with open(ec2_json_path, 'r') as f:
+            data = json.loads(f.read())
+        current_data = data[self.instance_name]
+
+        # Create resources. Wrap in a try-except block so that we can catch errors.
+        self.output_mgr.step_starting("[dodger_blue2]Building resources...[/dodger_blue2]")  # noqa
+        try:
+            new_data = self.protocol.create_resources(
+                current_data=current_data,
+                ec2_client=self.ec2_client,
+                instance_name=self.instance_name,
+                instance_type=instance_type,
+                ami_image=ami_image,
+            )
+            self.update_json(new_data)
+            self.output_mgr.step_completed("Built resources!", is_substep=False)
+
+        # If we fail at creating resources, then delete the resources that were created
+        except Exception as e:
+            self.output_mgr.step_failed()
+            self.update_json(self.protocol.resource_data)
+            self.delete_resources_in_json()
+            raise e
 
         # If the user is using an image, then ignore the Python version
+        python_version = self.parse_infra_key(self.infra.infra_conf, "python_version")
         if self.image is not None:
             if python_version != "":
                 self.output_mgr.log_output(
@@ -760,6 +557,7 @@ class Ec2(Agent):
                     level="info",
                     msg="Ignoring Python version in favor of newly built image"
                 )
+                python_version = ""
 
         # requirements.txt path
         requirements_txt_path = Path(
@@ -771,159 +569,86 @@ class Ec2(Agent):
             requirements_txt_str = str(requirements_txt_path)
 
         # Post-build commands
-        processed_post_build_commands = []
-        raw_post_build_commands = self.infra.infra_conf["post_build_cmds"]
-        for pbc in raw_post_build_commands:
-            processed_post_build_commands.append(f'{pbc}')
+        post_build_commands = self.infra.infra_conf["post_build_cmds"]
 
         # Environment dictionary
         env_dict = self.parse_environment_variables(self.agent_conf)
-        env_cli = ",".join([f"{k}={v}" for k, v in env_dict.items()])
 
         # Paths to copy
-        all_local_paths = self.get_all_local_paths(
+        all_local_mounts = self.get_all_local_mounts(
             self.alto_wkdir,
             self.agent_conf,
         )
-        project_dir = all_local_paths.pop(0)
-        all_local_paths_cli = ",".join(all_local_paths)
-
-        # Create the instance. If we're not streaming all logs, then indicate to the
-        # user that we're building resources
-        instance_id_attr = getattr(self, ec2Resource.INSTANCE_ID.value)
-        self.output_mgr.step_starting("[dodger_blue2]Building resources...[/dodger_blue2]")  # noqa
-        data = self.create_instance(
-            self.ec2_client,
-            self.ec2_resource,
-            instance_id_attr,
-            self.instance_name,
-            instance_type,
-            ami_image,
-        )
-        self.output_mgr.step_completed("Built resources!", is_substep=False)
 
         # The `create_instance` command is blocking — it won't finish until the instance
         # is up and running.
+        self.output_mgr.step_starting("[dodger_blue2]Building agent...[/dodger_blue2]")  # noqa
         try:
-            user = "ec2-user"
-            public_dns_name = data["resources"]["public_dns_name"]
-            pem_key_path = data["files"]["pem_key_path"]
+            returncode = self.protocol.setup_instance(
+                current_data=new_data,
+                ec2_client=self.ec2_client,
+                image=self.image,
+                instance_name=self.instance_name,
+                ec2_user="ec2-user",
+                requirements_txt_str=requirements_txt_str,
+                local_mounts=all_local_mounts,
+                env_vars=env_dict,
+                python_version=python_version,
+                post_build_commands=post_build_commands,
 
-            # Build the shell command
-            cmd_optargs = {
-                '-r': str(requirements_txt_str),
-                '-p': str(pem_key_path),
-                '-u': user,
-                '-n': public_dns_name,
-                '-d': str(project_dir),
-                '-c': all_local_paths_cli,
-                '-e': env_cli,
-                '-v': python_version,
-                '-x': processed_post_build_commands
-            }
-            self.apply_command = AgentCommand(
-                executable='/bin/bash',
-                script=self.AGENT_APPLY_SCRIPT,
-                args=cmd_optargs
             )
-            self.set_apply_command_attributes()
-
-            # Set the accepted and additional optargs
-            cmd = self.apply_command.process_cmd()
-
-            # Open a subprocess and stream the logs
-            self.output_mgr.step_starting("[dodger_blue2]Building agent...[/dodger_blue2]")  # noqa
-            _, _, returncode = self._execute_apply_script(cmd)
-
-            # Otherwise, if the return code is non-zero, then an error occurred. Delete
-            # all of the resources so that the user can try again.
             if returncode != 0:
                 self.output_mgr.step_failed()
-                self.delete()
+                self.delete_resources_in_json()
             else:
                 self.output_mgr.step_completed("Built agent!", is_substep=False)
-
-            # Return the returncode.
-            self.output_mgr.stop_live()
+                self.output_mgr.stop_live()
             return returncode
 
-        # If we encounter any sort of error. The parent function is in charge of calling
-        # the output manager and deleting the resources.
+        # If we encounter any sort of error, update the JSON and delete the resouces
         except Exception as e:
+            self.output_mgr.step_failed()
+            self.delete_resources_in_json()
             raise e
 
     def run(self, overrides={}):
         """
         Run the project using the EC2 agent
         """
-        # Attributes
-        instance_id_attr = getattr(self, ec2Resource.INSTANCE_ID.value)
-        security_group_id_attr = getattr(self, ec2Resource.SECURITY_GROUP_ID.value)
-        public_dns_name_attr = getattr(self, ec2Resource.PUBLIC_DNS_NAME.value)
-        pem_key_path_attr = getattr(self, ec2File.PEM_KEY_PATH.value)
-
-        # Full command
-        full_cmd = self.entrypoint.build_command()
+        # Grab the current resources
+        ec2_json_path = Path(INTERNAL_FOLDER / 'ec2.json')
+        with open(ec2_json_path, 'r') as f:
+            data = json.loads(f.read())
+        current_data = data[self.instance_name]
 
         # Download files
         download_files = self.agent_conf["download_files"]
-        download_files_cmd = []
+        download_files_cmd: List[str] = []
         for df in download_files:
             download_files_cmd.append(df)
 
-        # Logging styling
-        if self.instance_name is None or instance_id_attr is None:
-            self.output_mgr.log_output(  # type: ignore
-                agent_img_name=self.instance_name,
-                stage=StageEnum.AGENT_RUN,
-                level="error",
-                msg="Agent data not found! Use `alto apply` to create your agent",
-            )
-            return
-
-        # Check the ingress rules
-        if security_group_id_attr is not None:
-            self.check_ingress_ip(self.ec2_client, security_group_id_attr)
-
-        # For mypy
-        if not isinstance(public_dns_name_attr, str):
-            raise ValueError("incompatible public DNS name!")
-
-        # The agent data should exist...Build the shell command
+        # Return code
         self.output_mgr.step_starting("[dodger_blue2]Running entrypoint...[/dodger_blue2]")  # noqa
-        self.run_command = AgentCommand(
-            executable='/bin/bash',
-            script=self.AGENT_RUN_SCRIPT,
-            args={
-                '-p': str(pem_key_path_attr),
-                '-u': 'ec2-user',
-                '-n': public_dns_name_attr,
-                '-d': str(self.alto_wkdir),
-                '-c': full_cmd,
-                '-f': download_files_cmd
-            }
-        )
-        self.set_run_command_attributes()
-
-        # Process the command and execute
-        cmd = self.run_command.process_cmd()
-        out, _, returncode = self.stream_logs(cmd, StageEnum.AGENT_RUN)
-
-        # Log anything from stdout that was printed in the project
-        for line in out.readlines():
-            self.output_mgr.log_output(
-                agent_img_name=self.instance_name,
-                stage=StageEnum.AGENT_RUN,
-                level="info",
-                msg=line.rstrip(),
+        try:
+            returncode = self.protocol.run_entrypoint_on_instance(
+                current_data=current_data,
+                ec2_client=self.ec2_client,
+                alto_wkdir=self.alto_wkdir,
+                image=self.image,
+                instance_name=self.instance_name,
+                entrypoint=self.entrypoint,
+                download_files=download_files_cmd,
             )
+            if returncode != 0:
+                self.output_mgr.step_failed()
+            else:
+                self.output_mgr.step_completed("Entrypoint completed!")
+            return returncode
 
-        # Return the returncode.
-        if returncode != 0:
+        # If there is any exception, return 1.
+        except Exception:
             self.output_mgr.step_failed()
-        else:
-            self.output_mgr.step_completed("Entrypoint completed!")
-        return returncode
+            raise
 
     def delete(self, overrides={}):
         """
@@ -934,7 +659,6 @@ class Ec2(Agent):
 
         In addition, remove the PEM key from our local files
         """
-
         # Delete the image, if it exists
         if self.image is not None:
             self.image.delete()
@@ -942,8 +666,16 @@ class Ec2(Agent):
         # Logging styling
         self.output_mgr.step_starting("[dodger_blue2]Deleting resources...[/dodger_blue2]")  # noqa
 
+        # Grab the current resources
+        ec2_json_path = Path(INTERNAL_FOLDER / 'ec2.json')
+        with open(ec2_json_path, 'r') as f:
+            data = json.loads(f.read())
+        current_data = data[self.instance_name]
+        current_resources = current_data.get("resources", {})
+        current_files = current_data.get("files", {})
+
         # Key pair
-        key_pair_attr = getattr(self, ec2Resource.KEY_PAIR.value)
+        key_pair_attr = current_resources.get(ec2Resource.KEY_PAIR.value, None)
         if key_pair_attr is None:
             self.output_mgr.log_output(
                 agent_img_name=self.instance_name,
@@ -951,18 +683,17 @@ class Ec2(Agent):
                 level="info",
                 msg="Key pair not found! If this is a mistake, then you may need to reset your resource data"  # noqa: E501
             )
-
         else:
-            pem_key_path_attr = getattr(self, ec2File.PEM_KEY_PATH.value)
+            pem_key_path_attr = current_files[ec2File.PEM_KEY_PATH.value]
             self.output_mgr.step_starting(
                 "Deleting key-pair...",
                 is_substep=True
             )
+            self.delete_key_pair_and_unlink_path(
+                self.ec2_client, key_name=key_pair_attr, pem_key_path=pem_key_path_attr
+            )
             log_key_pair = f"{alto.ui.MAGENTA}{key_pair_attr}{alto.ui.RESET}"
             log_key_path = f"{alto.ui.MAGENTA}{str(pem_key_path_attr)}{alto.ui.RESET}"  # noqa: E501
-            self.ec2_client.delete_key_pair(
-                KeyName=key_pair_attr
-            )
             self.output_mgr.log_output(
                 agent_img_name=self.instance_name,
                 stage=StageEnum.AGENT_DELETE,
@@ -973,20 +704,72 @@ class Ec2(Agent):
                 is_substep=True,
                 symbol=Symbol.DELETED,
             )
-            try:
-                os.unlink(str(pem_key_path_attr))
 
-            # If this file never existed, then pass
-            except FileNotFoundError:
-                self.output_mgr.log_output(
-                    agent_img_name=self.instance_name,
-                    stage=StageEnum.AGENT_DELETE,
-                    level="info",
-                    msg=f"Key-pair {log_key_pair} at {log_key_path} doesn't exist!",
-                )
+        # Role
+        iam_client = boto3.client("iam")
+        role_arn_attr = current_resources.get(
+            ec2Resource.ROLE_ARN.value, None
+        )
+        if role_arn_attr is None:
+            self.output_mgr.log_output(
+                agent_img_name=self.instance_name,
+                stage=StageEnum.AGENT_DELETE,
+                level="info",
+                msg="IAM role not found! If this is a mistake, then you may need to reset your resource data"  # noqa: E501
+            )
+        else:
+            self.output_mgr.step_starting(
+                "Deleting IAM role...",
+                is_substep=True
+            )
+            self.detach_and_delete_iam_role(
+                iam_client, iam_role_name=f"{self.instance_name}-role"
+            )
+
+            log_role_arn = f"{alto.ui.MAGENTA}{role_arn_attr}{alto.ui.RESET}"  # noqa: E501
+            self.output_mgr.log_output(
+                agent_img_name=self.instance_name,
+                stage=StageEnum.AGENT_DELETE,
+                level="info",
+                msg=f"Deleting IAM role {log_role_arn}",
+                renderable_type="Deleted IAM role",
+                is_step_completion=True,
+                is_substep=True,
+                symbol=Symbol.DELETED,
+            )
+
+        # IAM instance profile
+        instance_profile_arn_attr = current_resources.get(
+            ec2Resource.INSTANCE_PROFILE_ARN.value, None
+        )
+        if instance_profile_arn_attr is None:
+            self.output_mgr.log_output(
+                agent_img_name=self.instance_name,
+                stage=StageEnum.AGENT_DELETE,
+                level="info",
+                msg="IAM instance profile not found! If this is a mistake, then you may need to reset your resource data"  # noqa: E501
+            )
+
+        else:
+            self.output_mgr.step_starting(
+                "Deleting IAM instance profile...",
+                is_substep=True
+            )
+            iam_client.delete_instance_profile(InstanceProfileName=f"{self.instance_name}-profile")  # noqa: E501
+            log_instance_profile = f"{alto.ui.MAGENTA}{instance_profile_arn_attr}{alto.ui.RESET}"  # noqa: E501
+            self.output_mgr.log_output(
+                agent_img_name=self.instance_name,
+                stage=StageEnum.AGENT_DELETE,
+                level="info",
+                msg=f"Deleting IAM instance profile {log_instance_profile}",
+                renderable_type="Deleted IAM instance profile",
+                is_step_completion=True,
+                is_substep=True,
+                symbol=Symbol.DELETED,
+            )
 
         # Instance
-        instance_id_attr = getattr(self, ec2Resource.INSTANCE_ID.value)
+        instance_id_attr = current_resources.get(ec2Resource.INSTANCE_ID.value, None)
         if instance_id_attr is None:
             self.output_mgr.log_output(
                 agent_img_name=self.instance_name,
@@ -1001,7 +784,7 @@ class Ec2(Agent):
                 is_substep=True
             )
             log_instance_id = f"{alto.ui.MAGENTA}{instance_id_attr}{alto.ui.RESET}"  # noqa: E501
-            _ = self.ec2_client.terminate_instances(
+            self.ec2_client.terminate_instances(
                 InstanceIds=[instance_id_attr]
             )
             self.output_mgr.log_output(
@@ -1016,7 +799,9 @@ class Ec2(Agent):
             )
 
         # Security group
-        security_group_id_attr = getattr(self, ec2Resource.SECURITY_GROUP_ID.value)
+        security_group_id_attr = current_resources.get(
+            ec2Resource.SECURITY_GROUP_ID.value, None
+        )
         if security_group_id_attr is None:
             self.output_mgr.log_output(
                 agent_img_name=self.instance_name,
@@ -1030,34 +815,20 @@ class Ec2(Agent):
                 "Deleting security group...",
                 is_substep=True
             )
+            self.resolve_dependency_violation_and_delete_security_group(
+                self.ec2_client, security_group_id_attr
+            )
             log_security_group_id = f"{alto.ui.MAGENTA}{security_group_id_attr}{alto.ui.RESET}"  # noqa: E501
-            while True:
-                try:
-                    self.ec2_client.delete_security_group(
-                        GroupId=security_group_id_attr
-                    )
-                    self.output_mgr.log_output(
-                        agent_img_name=self.instance_name,
-                        stage=StageEnum.AGENT_DELETE,
-                        level="info",
-                        msg=f"Deleting security group {log_security_group_id}",
-                        renderable_type="Deleted security group",
-                        is_step_completion=True,
-                        is_substep=True,
-                        symbol=Symbol.DELETED,
-                    )
-                    break
-                except botocore.exceptions.ClientError as e:
-                    if "DependencyViolation" in str(e):
-                        self.output_mgr.log_output(
-                            agent_img_name=self.instance_name,
-                            stage=StageEnum.AGENT_DELETE,
-                            level="info",
-                            msg=f"Encountered `DependencyViolation` when deleting security group {log_security_group_id}...waiting 5 seconds and trying again"  # noqa: E501
-                        )
-                        time.sleep(5)
-                    else:
-                        raise e
+            self.output_mgr.log_output(
+                agent_img_name=self.instance_name,
+                stage=StageEnum.AGENT_DELETE,
+                level="info",
+                msg=f"Deleting security group {log_security_group_id}",
+                renderable_type="Deleted security group",
+                is_step_completion=True,
+                is_substep=True,
+                symbol=Symbol.DELETED,
+            )
 
         self.output_mgr.step_completed("Deleted resources!")
         self.output_mgr.stop_live()

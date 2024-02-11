@@ -3,119 +3,38 @@ Protocols for accessing virtual machines. Currently, only needed for EC2 instanc
 """
 
 # Imports
-import argparse
 import botocore
-import json
-import os
 from pathlib import Path
 import re
-import stat
 import time
 from typing import Any, Dict, List, Optional
 import urllib
+import subprocess
 
 # Alto imports
-from alto.constants import INTERNAL_FOLDER
+from alto.agents.ec2.protocols.base import Protocol
+from alto.command import AgentCommand
+from alto.entrypoints import BaseEntrypoint
+from alto.images import BaseImage
 from alto.mixins.aws_mixins import (
-    AwsMixin,
     State,
     IpAddressType,
     ec2Resource,
     ec2File,
 )
-from alto.output import (
-    OutputManager,
-)
 import alto.ui
+
+# Type hints
+from mypy_boto3_ec2.client import EC2Client
 
 
 # Classes
-class Protocol(AwsMixin):
-    args: argparse.Namespace
-    infra_conf: Dict[str, Any]
-    output_mgr: OutputManager
-    resource_data: Dict[str, Any] = {}
-
-    def __init__(
-        self,
-        args: argparse.Namespace,
-        infra_conf: Dict[str, Any],
-        output_mgr: OutputManager
-    ):
-        self.args = args
-        self.infra_conf = infra_conf
-        self.output_mgr = output_mgr
-
-    def create_instance(self,
-        current_data: Dict[str, Any],
-        ec2_client: Any,
-        ec2_resource: Any,
-        instance_id: Optional[str],
-        instance_name: str,
-        instance_type: str,
-        ami_image: str,
-    ):
-        raise NotImplementedError
-
-
 class SSHProtocol(Protocol):
-
-    def create_key_pair(self,
-        ec2_client: Any,
-        key_name: str,
-        directory: Path = Path(os.path.expanduser("~/.alto"))
-    ) -> Optional[Path]:
-        """
-        Create a PEM key pair. This PEM key is required to SSH / copy files into our EC2
-        instance / EMR cluster. We will call this function before the user first creates
-        their instance.
-
-        args:
-            client: Boto3 EC2 client key_name: name of the new key pair directory:
-            directory in which to place the keypair; default is ~/.aws/
-        returns:
-            path to newly created PEM key
-        raises:
-            UnauthorizedOperation if the user does not have the required permissions to
-            create a key pair
-        """
-        response = ec2_client.create_key_pair(
-            KeyName=key_name,
-            KeyType="rsa",
-            KeyFormat="pem"
-        )
-        if not Path(directory).is_dir():
-            Path(directory).mkdir(parents=True)
-
-        # Write the key to a local file
-        try:
-            with open(Path(directory / f"{key_name}.pem"), 'w') as f:
-                f.write(response["KeyMaterial"])
-
-        # If the path already exists and cannot be edited, then raise the exception. But
-        # first, delete the newly created key pair.
-        except Exception as e:
-            ec2_client.delete_key_pair(
-                KeyName=key_name
-            )
-            raise e
-
-        # If, for whatever reason, the file doesn't exist, throw an error
-        if not Path(directory / f"{key_name}.pem").is_file():
-            raise ValueError("Could not find newly created PEM key!")
-
-        # Change the permissions
-        os.chmod(Path(directory / f"{key_name}.pem"), stat.S_IREAD)
-
-        # We'll need to persist the location of the PEM key across runs. For example,
-        # let's say a user calls `agent apply` and creates the key-pair and EC2
-        # instance. When they call `agent run`, we will need to use the PEM key created
-        # by `agent apply` to execute the operation. For now, return the path. We'll
-        # save out a JSON with this path in the agent class.
-        return Path(directory / f"{key_name}.pem")
+    apply_command: AgentCommand
+    run_command: AgentCommand
 
     def create_new_security_group(self,
-        ec2_client: Any,
+        ec2_client: EC2Client,
         instance_name: str,
     ):
         """
@@ -199,7 +118,7 @@ class SSHProtocol(Protocol):
             return IpAddressType('ipv6')
 
     def add_ingress_rule(self,
-        ec2_client: Any,
+        ec2_client: EC2Client,
         security_group_id: str,
         external_ip: str,
     ) -> Optional[str]:
@@ -257,7 +176,7 @@ class SSHProtocol(Protocol):
             raise e
 
     def check_ingress_ip(self,
-        ec2_client: Any,
+        ec2_client: EC2Client,
         security_group_id: str,
     ) -> Optional[str]:
         """
@@ -319,24 +238,22 @@ class SSHProtocol(Protocol):
             )
         return None
 
-    def create_instance(self,
+    def create_resources(self,
         current_data: Dict[str, Any],
-        ec2_client: Any,
-        ec2_resource: Any,
-        instance_id: Optional[str],
+        ec2_client: EC2Client,
         instance_name: str,
         instance_type: str,
         ami_image: str,
     ):
         """
-        Create EC2 instance
+        Create EC2 resources
 
         args:
             current_data: current EC2 resources/files data
             ec2_client: Boto3 AWS EC2 client
             ec2_resource: Boto3 AWS EC2 resource
             instance_id: EC2 instance ID
-            instance_name: name of EC2 instance
+            instance_name: EC2 instance name
             instance_type: EC2 instance types
             ami_image: AMI image to use in instance
         returns:
@@ -347,15 +264,6 @@ class SSHProtocol(Protocol):
 
         # Wrap the whole thing in a single try-except block
         try:
-
-            def _create_exception(resource):
-                return ValueError('\n'.join([
-                    f"{resource} exists, but ~/.alto/ec2.json file not found! This only happens if:",  # noqa: E501
-                    f"    1. You manually created the {resource}",
-                    "    2. You deleted ~/.alto/ec2.json",
-                    f"Delete the {resource} from EC2 and try again!"
-                ]))
-
             # Create PEM key pair
             self.output_mgr.step_starting(
                 "Creating key pair",
@@ -377,16 +285,7 @@ class SSHProtocol(Protocol):
                     is_substep=True
                 )
             else:
-
-                # If the key-pair exists, then the location of the PEM key path should
-                # be contained in ~/.alto/ec2.json. If it isn't, then either:
-                #   1. The user manually created the key pair
-                #   2. The user deleted ~/.alto/ec2.json
-                if not Path(INTERNAL_FOLDER / 'ec2.json').is_file():
-                    raise _create_exception(ec2Resource.KEY_PAIR.value)
                 pem_key_path = current_files[ec2File.PEM_KEY_PATH.value]
-
-                # Log
                 log_instance_name = f"{alto.ui.MAGENTA}{instance_name}{alto.ui.RESET}"  # noqa: E501
                 log_instance_path = f"{alto.ui.MAGENTA}{str(pem_key_path)}{alto.ui.RESET}"  # noqa: E501
                 self.output_mgr.log_output(
@@ -429,10 +328,6 @@ class SSHProtocol(Protocol):
                     is_substep=True
                 )
             else:
-                if not Path(INTERNAL_FOLDER / 'ec2.json').is_file():
-                    raise _create_exception(ec2Resource.SECURITY_GROUP_ID.value)
-
-                # Log
                 security_group_id = current_resources[ec2Resource.SECURITY_GROUP_ID.value]  # noqa
                 self.check_ingress_ip(ec2_client, security_group_id)
                 log_security_group_id = f"{alto.ui.MAGENTA}{security_group_id}{alto.ui.RESET}"  # noqa: E501
@@ -460,7 +355,7 @@ class SSHProtocol(Protocol):
                 is_substep=True
             )
             if current_resources.get(ec2Resource.INSTANCE_ID.value, None) is None:
-                instance = ec2_resource.create_instances(
+                resp = ec2_client.run_instances(
                     InstanceType=instance_type,
                     KeyName=instance_name,
                     MinCount=1,
@@ -481,7 +376,8 @@ class SSHProtocol(Protocol):
                         security_group_id
                     ]
                 )
-                instance_id = instance[0].id
+                instance = resp["Instances"][0]
+                instance_id = instance["InstanceId"]
 
                 # Log
                 self.output_mgr.log_output(
@@ -495,11 +391,6 @@ class SSHProtocol(Protocol):
                 )
                 time.sleep(1)
             else:
-                if not Path(INTERNAL_FOLDER / 'ec2.json').is_file():
-                    raise _create_exception(ec2Resource.INSTANCE_ID.value)
-                instance_id = current_resources[ec2Resource.INSTANCE_ID.value]
-
-                # Log
                 self.output_mgr.log_output(
                     agent_img_name=instance_name,
                     stage=alto.ui.StageEnum.AGENT_BUILD,
@@ -547,9 +438,9 @@ class SSHProtocol(Protocol):
             # Write data
             self.resource_data["resources"].update(
                 {
-                    "instance_id": instance_id,  # type: ignore
-                    "public_dns_name": resp["public_dns_name"],
-                    "state": resp["state"]
+                    ec2Resource.INSTANCE_ID.value: instance_id,
+                    ec2Resource.PUBLIC_DNS_NAME.value: resp["public_dns_name"],
+                    ec2Resource.STATE.value: resp["state"]
                 }
             )
 
@@ -561,121 +452,321 @@ class SSHProtocol(Protocol):
         except Exception as e:
             raise e
 
-
-class SSMProtocol(Protocol):
-
-    def attach_policies_to_role(self,
-        iam_client: Any,
-        policy_names: List[str],
-        iam_role_name: str,
-    ) -> None:
-        """
-        Attach `policy_name` to `iam_role_name`. We use this to make sure our EC2
-        instance can connect to SSM.
-        args:
-            iam_client: IAM client
-            policy names: list of policy names to attach
-            iam_role_name: IAM role to which to attach policies
-        returns:
-            None
-        """
-        for _policy in policy_names:
-            policy_arn = f"arn:aws:iam::aws:policy/{_policy}"
-            iam_client.attach_role_policy(
-                RoleName=iam_role_name,
-                PolicyArn=policy_arn
-            )
-        return None
-
-    def create_instance_profile(self,
-        iam_client: Any,
-        iam_role_name: str,
+    def _log_output(self,
+        output,
         instance_name: str,
-    ) -> str:
-        """
-        Create instance profile. We use this to make sure our EC2 instance can connect
-        to SSM.
+        stage: alto.ui.StageEnum
+    ):
+        if output:
+            if isinstance(output, str):
+                if not re.findall(r"^[\-]+$", output.rstrip()):
+                    self.output_mgr.log_output(
+                        agent_img_name=instance_name,
+                        stage=stage,
+                        level="info",
+                        msg=output.rstrip(),
+                        renderable_type=f"[dodger_blue2]{output.rstrip()}[/dodger_blue2]" if stage == alto.ui.StageEnum.AGENT_RUN else None,  # noqa
+                        is_step_completion=False,
+                    )
+            else:
+                if not re.findall(r"^[\-]+$", output.decode().rstrip()):
+                    self.output_mgr.log_output(
+                        agent_img_name=instance_name,
+                        stage=stage,
+                        level="info",
+                        msg=output.decode().rstrip(),
+                        renderable_type=f"[dodger_blue2]{output.decode().rstrip()}[/dodger_blue2]" if stage == alto.ui.StageEnum.AGENT_RUN else None,  # noqa
+                        is_step_completion=False,
+                    )
 
-        args:
-            iam_client: IAM client
-            iam_role_name: IAM role to create
-            instance_name: instance name
-        returns:
-            IAM role ARN
-        """
-        # Create IAM Role for SSM
-        role_policy_document = {
-            "Version": "2012-10-17",
-            "Statement": [
-                {
-                    "Effect": "Allow",
-                    "Principal": {"Service": "ec2.amazonaws.com"},
-                    "Action": "sts:AssumeRole"
-                }
-            ]
-        }
-        role_response = iam_client.create_role(
-            RoleName=iam_role_name,
-            AssumeRolePolicyDocument=json.dumps(role_policy_document)
-        )
-
-        # Log
-        role_arn: str = str(role_response["Role"]["Arn"])
-        role_arn_log = f"{alto.ui.MAGENTA}{role_arn}{alto.ui.RESET}"
-        iam_role_name_log = f"{alto.ui.MAGENTA}{iam_role_name}{alto.ui.RESET}"
-        self.output_mgr.log_output(
-            agent_img_name=instance_name,
-            stage=alto.ui.StageEnum.AGENT_BUILD,
-            level="info",
-            msg=f"Created IAM Role {iam_role_name_log} created with ARN {role_arn_log}",
-        )
-
-        # Attach SSM policies to the role
-        self.attach_policies_to_role(
-            iam_client,
-            ["AmazonSSMFullAccess", "AmazonSSMManagedEC2InstanceDefaultPolicy"],
-            iam_role_name
-        )
-
-        # Attach IAM Role to EC2 instance
-        instance_profile_response = iam_client.create_instance_profile(
-            InstanceProfileName=iam_role_name
-        )
-        instance_profile_name = instance_profile_response['InstanceProfile']['InstanceProfileName']  # noqa: E501
-        iam_client.add_role_to_instance_profile(
-            InstanceProfileName=instance_profile_name,
-            RoleName=iam_role_name
-        )
-
-        # Log
-        instance_profile_name_log = f"{alto.ui.MAGENTA}{instance_profile_name}{alto.ui.RESET}"  # noqa: E501
-        self.output_mgr.log_output(
-            agent_img_name=instance_name,
-            stage=alto.ui.StageEnum.AGENT_BUILD,
-            level="info",
-            msg=f"Attached IAM Role {iam_role_name_log} attached to Instance Profile {instance_profile_name_log}"  # noqa: E501
-        )
-        return role_arn
-
-    def create_instance(self,
-        current_data: Dict[str, Any],
-        ec2_client: Any,
-        ec2_resource: Any,
-        instance_id: Optional[str],
+    def stream_logs(self,
+        cmd: List[str],
         instance_name: str,
-        instance_type: str,
-        ami_image: str,
+        stage: alto.ui.StageEnum,
     ):
         """
-        Create EC2 instance
+        Stream Bash script logs. We use bash scripts to run our `apply` and `run`
+        commands.
 
         args:
-            current_data: current EC2 resources/files data
-            ec2_client: Boto3 AWS EC2 client
-            ec2_resource: Boto3 AWS EC2 resource
-            instance_id: EC2 instance ID
-            instance_name: name of EC2 instance
-            instance_type: EC2 instance types
+            cmd: subprocess command
+            stage: build stage
+            color: color to use in log styling
+            which: one of `build` or `run`
         returns:
-            EC2 response
+            subprocess return code
         """
+        # Open a subprocess and stream the logs
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        while True:
+            output = process.stdout
+            if output is not None:
+                output = output.readline()  # type: ignore
+
+            # Stream the logs
+            if process.poll() is not None:
+                break
+            self._log_output(output, instance_name, stage)
+
+        return process.stdout, process.stderr, process.returncode
+
+    def set_apply_command_attributes(self, image: BaseImage):
+        """
+        Set the acceptable apply command parameters
+        """
+        # If we're running a Docker image on our EC2 instance, then update the arguments
+        if image is not None and image.image_conf["type"] == "docker":
+            self.apply_command.set_accepted_apply_optargs(['-p', '-u', '-n'])
+
+            # Additional optargs. Note that this function is called AFTER we push our
+            # image to our registry, so our registry configuration should have all the
+            # information we need.
+            registry, username, password = image.registry.get_login_info()
+            additional_optargs = {
+                '-a': username,
+                '-z': password,
+                '-r': registry,
+                '-i': f"{image.image_name}:{image.image_version}"  # type: ignore  # noqa
+            }
+            self.apply_command.set_additional_optargs(additional_optargs)
+
+    def set_run_command_attributes(self, image: BaseImage):
+        """
+        Set the acceptable run command parameters
+        """
+        if not hasattr(self, "run_command"):
+            raise ValueError("object does not have `run_command` attribute!")
+
+        # If we're running a Docker image on our EC2 instance, then update the arguments
+        if image is not None and image.image_conf["type"] == "docker":
+            self.run_command.set_accepted_apply_optargs(['-p', '-u', '-n', '-f', '-d'])
+
+            # Additional optargs. Note that this function is called AFTER we push our
+            # image to our registry, so our registry configuration should have all the
+            # information we need.
+            registry, username, password = image.registry.get_login_info()
+            additional_optargs = {
+                '-a': username,
+                '-z': password,
+                '-r': registry,
+                '-i': f"{image.image_name}:{image.image_version}"  # type: ignore # noqa
+            }
+            self.run_command.set_additional_optargs(additional_optargs)
+
+    def _execute_apply_script(self,
+        cmd: List[str],
+        instance_name: str,
+        ec2_client: EC2Client,
+        security_group_id: str,
+    ):
+        # Open a subprocess and stream the logs
+        out, err, returncode = self.stream_logs(
+            cmd, instance_name, alto.ui.StageEnum.AGENT_BUILD
+        )
+
+        # Log anything from stderr that was printed in the project
+        for line in err.readlines():
+            self.output_mgr.log_output(
+                agent_img_name=instance_name,
+                stage=alto.ui.StageEnum.AGENT_BUILD,
+                level="info",
+                msg=line.rstrip()
+            )
+
+        # A return code of 8 indicates that the SSH connection timed out. Try
+        # whitelisting the current IP and try again.
+        if returncode == 8:
+            self.output_mgr.log_output(
+                agent_img_name=instance_name,
+                stage=alto.ui.StageEnum.AGENT_BUILD,
+                level="info",
+                msg="SSH connection timed out...checking security group ingress rules and trying again"  # noqa: E501
+            )
+
+            # Add the current IP to the security ingress rules
+            added_ip = self.check_ingress_ip(
+                ec2_client, security_group_id
+            )
+
+            # If the current IP address is already whitelisted, then just add
+            # 0.0.0.0/0 to the ingress rules.
+            if added_ip is None:
+                self.args.whitelist_all = True
+                self.output_mgr.log_output(
+                    agent_img_name=instance_name,
+                    stage=alto.ui.StageEnum.AGENT_BUILD,
+                    level="info",
+                    msg="Current IP address already whitelisted...whitelisting 0.0.0.0/0"  # noqa: E501
+                )
+                self.add_ingress_rule(
+                    ec2_client,
+                    security_group_id,
+                    "0.0.0.0",
+                )
+
+            # Try again
+            out, err, returncode = self.stream_logs(
+                cmd, instance_name, alto.ui.StageEnum.AGENT_BUILD
+            )
+        return out, err, returncode
+
+    def setup_instance(self,
+        current_data: Dict[str, Any],
+        ec2_client: EC2Client,
+        image: Optional[BaseImage],
+        instance_name: str,
+        ec2_user: str,
+        requirements_txt_str: str,
+        local_mounts: List[str],
+        env_vars: Dict[str, str],
+        python_version: str,
+        post_build_commands: List[str],
+    ) -> int:
+        """
+        Set up our instance. We call this command after `create_resources`, so our
+        instance should be up and running.
+
+        args:
+            current_data: current EC2 data from ~/.alto/ec2.json
+            ec2_client: Boto3 EC2 client
+            image: image associated with infrastructure
+            instance_name: EC2 instance name
+            ec2_user: root user Amazon Linux instances
+            requirements_txt_str: path to requirements file
+            local_mounts: list of files to mount onto instance
+            env_vars: dictionary of environment variables
+            python_version: Python version to install on Linux instance;
+            post_build_commands: list of commands to run in Linux build
+        returns:
+            return code for agent's apply script
+        """
+        security_group_id = current_data["resources"][ec2Resource.SECURITY_GROUP_ID.value]  # noqa: E501
+        public_dns_name = current_data["resources"][ec2Resource.PUBLIC_DNS_NAME.value]
+        pem_key_path = str(current_data["files"][ec2File.PEM_KEY_PATH.value])
+
+        # Project directory and local mounts
+        project_dir = local_mounts.pop(0)
+        local_mounts_cli = ",".join(local_mounts)
+
+        # Environment CLI
+        env_cli = ",".join([f"{k}={v}" for k, v in env_vars.items()])
+
+        # Build the shell command
+        cmd_optargs = {
+            '-r': str(requirements_txt_str),
+            '-p': str(pem_key_path),
+            '-u': ec2_user,
+            '-n': public_dns_name,
+            '-d': str(project_dir),
+            '-c': local_mounts_cli,
+            '-e': env_cli,
+            '-v': python_version,
+            '-x': post_build_commands
+        }
+        self.apply_command = AgentCommand(
+            executable='/bin/bash',
+            script=self.apply_script,
+            args=cmd_optargs
+        )
+        self.set_apply_command_attributes(image)
+
+        # Set the accepted and additional optargs
+        cmd = self.apply_command.process_cmd()
+
+        # Open a subprocess and stream the logs
+        _, _, returncode = self._execute_apply_script(
+            cmd, instance_name, ec2_client, security_group_id
+        )
+        return returncode
+
+    def run_entrypoint_on_instance(self,
+        current_data: Dict[str, Any],
+        ec2_client: EC2Client,
+        alto_wkdir: Path,
+        image: Optional[BaseImage],
+        instance_name: str,
+        entrypoint: BaseEntrypoint,
+        download_files: List[str],
+    ) -> int:
+        """
+        Set up our instance. We call this command after `create_resources`, so our
+        instance should be up and running.
+
+        args:
+            current_resource: current EC2 resources associated with the protocol
+            kwargs: arguments needed to set up instance via SSH
+        """
+        instance_id = current_data["resources"].get(
+            ec2Resource.INSTANCE_ID.value, None
+        )
+        security_group_id = current_data["resources"].get(
+            ec2Resource.SECURITY_GROUP_ID.value, None
+        )
+        public_dns_name = current_data["resources"].get(
+            ec2Resource.PUBLIC_DNS_NAME.value, None
+        )
+        pem_key_path = Path(current_data["files"].get(
+            ec2File.PEM_KEY_PATH.value, None
+        ))
+
+        # Full command
+        full_cmd = entrypoint.build_command()
+
+        # Download files
+        download_files_cmd = []
+        for df in download_files:
+            download_files_cmd.append(df)
+
+        # Logging styling
+        if instance_id is None:
+            self.output_mgr.log_output(  # type: ignore
+                agent_img_name=instance_name,
+                stage=alto.ui.StageEnum.AGENT_RUN,
+                level="error",
+                msg="Agent data not found! Use `alto apply` to create your agent",
+            )
+            return 1
+
+        # Check the ingress rules
+        if security_group_id is not None:
+            self.check_ingress_ip(ec2_client, security_group_id)
+
+        # For mypy
+        if not isinstance(public_dns_name, str):
+            raise ValueError("incompatible public DNS name!")
+
+        # The agent data should exist...Build the shell command
+        self.run_command = AgentCommand(
+            executable='/bin/bash',
+            script=self.run_script,
+            args={
+                '-p': str(pem_key_path),
+                '-u': 'ec2-user',
+                '-n': public_dns_name,
+                '-d': str(alto_wkdir),
+                '-c': full_cmd,
+                '-f': download_files_cmd
+            }
+        )
+        self.set_run_command_attributes(image)
+
+        # Process the command and execute
+        cmd = self.run_command.process_cmd()
+        out, _, returncode = self.stream_logs(
+            cmd, instance_name, alto.ui.StageEnum.AGENT_RUN
+        )
+
+        # Log anything from stdout that was printed in the project
+        for line in out.readlines():
+            self.output_mgr.log_output(
+                agent_img_name=self.instance_name,
+                stage=alto.ui.StageEnum.AGENT_RUN,
+                level="info",
+                msg=line.rstrip(),
+            )
+        return returncode

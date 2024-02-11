@@ -180,6 +180,7 @@ class OutputManager:
             lbl: Spinner = tree.label  # type: ignore
             txt = lbl.text.__str__().lower().replace("...", "")
             txt = txt.replace("ec2", "EC2")
+            txt = txt.replace("iam", "IAM")
             tree.label = f"[red]✕ Failed when {txt}[/red]"  # noqa
 
             # Skip the remaining tasks

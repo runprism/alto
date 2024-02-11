@@ -301,6 +301,9 @@ class Docker(BaseImage, ConfigMixin):
                 str(cmd) for _, cmd in copy_commands.items()
             ])
 
+            # Flattened wkdir
+            alto_wkdir_name = list(copy_commands.keys())[0]
+
             # Copy requirements into the docker context. If the requirements are not
             # specified, create a blank requirements.txt file in the Docker context
 
@@ -326,7 +329,7 @@ class Docker(BaseImage, ConfigMixin):
                 base_image=jinja_template_overrides.get("base_image", self.base),
                 image_build_cmds=jinja_template_overrides.get("image_build_cmds", image_build_commands_dockerfile),  # noqa
                 requirements_txt=jinja_template_overrides.get("requirements_txt", requirements_relative_str),  # noqa
-                alto_wkdir_name=jinja_template_overrides.get("alto_wkdir_name", self.alto_wkdir.name),  # noqa
+                alto_wkdir_name=jinja_template_overrides.get("alto_wkdir_name", alto_wkdir_name),  # noqa
                 copy_commands=jinja_template_overrides.get("copy_commands", copy_commands_dockerfile),  # noqa
                 env=jinja_template_overrides.get("env", env_dockerfile),
                 cmd=jinja_template_overrides.get("cmd", entrypoint.build_command()),  # noqa

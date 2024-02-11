@@ -122,9 +122,7 @@ class Ec2(BaseInfra):
         if self.infra_conf["protocol"] == "ssh":
             self.infra_conf["instance_profile"] = None
         elif "instance_profile" not in self.infra_conf.keys():
-            raise ValueError('`ssm` protocol requires an instance profile!')
-        elif self.infra_conf["instance_profile"] is None:
-            raise ValueError('`ssm` protocol requires an instance profile!')
+            self.infra_conf["instance_profile"] = None
 
         # Python version
         self.infra_conf = self.define_python_version(self.infra_conf)

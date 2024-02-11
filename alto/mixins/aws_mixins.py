@@ -3,9 +3,16 @@ Generic AWS functions
 """
 
 import boto3
+import botocore
 from enum import Enum
+import os
+from pathlib import Path
 import time
+import stat
 from typing import Any, Dict, Optional
+
+# Type hints
+from mypy_boto3_ec2.client import EC2Client
 
 
 class State(str, Enum):
@@ -32,6 +39,7 @@ class ec2Resource(str, Enum):
 
     # For the SSM protocol
     ROLE_ARN = "role_arn"
+    INSTANCE_PROFILE_ARN = "instance_profile_arn"
 
 
 class ec2File(str, Enum):
@@ -39,6 +47,60 @@ class ec2File(str, Enum):
 
 
 class AwsMixin:
+
+    def create_key_pair(self,
+        ec2_client: EC2Client,
+        key_name: str,
+        directory: Path = Path(os.path.expanduser("~/.alto"))
+    ) -> Optional[Path]:
+        """
+        Create a PEM key pair. This PEM key is required to SSH / copy files into our EC2
+        instance / EMR cluster. We will call this function before the user first creates
+        their instance.
+
+        args:
+            client: Boto3 EC2 client key_name: name of the new key pair directory:
+            directory in which to place the keypair; default is ~/.aws/
+        returns:
+            path to newly created PEM key
+        raises:
+            UnauthorizedOperation if the user does not have the required permissions to
+            create a key pair
+        """
+        response = ec2_client.create_key_pair(
+            KeyName=key_name,
+            KeyType="rsa",
+            KeyFormat="pem"
+        )
+        if not Path(directory).is_dir():
+            Path(directory).mkdir(parents=True)
+
+        # Write the key to a local file
+        try:
+            with open(Path(directory / f"{key_name}.pem"), 'w') as f:
+                f.write(response["KeyMaterial"])
+
+        # If the path already exists and cannot be edited, then raise the exception. But
+        # first, delete the newly created key pair.
+        except Exception as e:
+            ec2_client.delete_key_pair(
+                KeyName=key_name
+            )
+            raise e
+
+        # If, for whatever reason, the file doesn't exist, throw an error
+        if not Path(directory / f"{key_name}.pem").is_file():
+            raise ValueError("Could not find newly created PEM key!")
+
+        # Change the permissions
+        os.chmod(Path(directory / f"{key_name}.pem"), stat.S_IREAD)
+
+        # We'll need to persist the location of the PEM key across runs. For example,
+        # let's say a user calls `agent apply` and creates the key-pair and EC2
+        # instance. When they call `agent run`, we will need to use the PEM key created
+        # by `agent apply` to execute the operation. For now, return the path. We'll
+        # save out a JSON with this path in the agent class.
+        return Path(directory / f"{key_name}.pem")
 
     def restart_instance(self,
         ec2_client,
@@ -120,9 +182,69 @@ class AwsMixin:
                     if inst["InstanceId"] == instance_id:
                         results["instance_id"] = instance_id
                         results["public_dns_name"] = inst["PublicDnsName"]
-                        results["key_name"] = inst["KeyName"]
+                        results["key_name"] = inst.get("KeyName", None)
                         results["security_groups"] = inst["SecurityGroups"]
                         results["state"] = State(inst["State"]["Name"])
 
         # Return
         return results
+
+    def delete_key_pair_and_unlink_path(self,
+        ec2_client: EC2Client,
+        key_name: str,
+        pem_key_path: Path
+    ):
+        ec2_client.delete_key_pair(
+            KeyName=key_name
+        )
+        os.unlink(str(pem_key_path))
+
+    def detach_policies_from_role(self,
+        iam_client: Any,
+        iam_role_name: str
+    ):
+        attached_policies = iam_client.list_attached_role_policies(
+            RoleName=iam_role_name
+        )['AttachedPolicies']
+        for policy in attached_policies:
+            iam_client.detach_role_policy(
+                RoleName=iam_role_name,
+                PolicyArn=policy['PolicyArn']
+            )
+
+    def detach_role_from_instance_profile(self,
+        iam_client: Any,
+        iam_role_name: str,
+    ):
+        instance_profiles = iam_client.list_instance_profiles_for_role(
+            RoleName=iam_role_name
+        )['InstanceProfiles']
+        for ip in instance_profiles:
+            iam_client.remove_role_from_instance_profile(
+                InstanceProfileName=ip['InstanceProfileName'],
+                RoleName=iam_role_name
+            )
+
+    def detach_and_delete_iam_role(self,
+        iam_client: Any,
+        iam_role_name: str
+    ):
+        self.detach_policies_from_role(iam_client, iam_role_name)
+        self.detach_role_from_instance_profile(iam_client, iam_role_name)
+        iam_client.delete_role(RoleName=iam_role_name)
+
+    def resolve_dependency_violation_and_delete_security_group(self,
+        ec2_client: EC2Client,
+        security_group_id: str,
+    ):
+        while True:
+            try:
+                ec2_client.delete_security_group(
+                    GroupId=security_group_id
+                )
+                break
+            except botocore.exceptions.ClientError as e:
+                if "DependencyViolation" in str(e):
+                    time.sleep(5)
+                else:
+                    raise e
