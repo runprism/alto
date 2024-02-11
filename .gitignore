@@ -161,3 +161,6 @@ cython_debug/
 
 # Mac OSX artifacts
 **/.DS_Store
+
+# Stuff for testing
+.docker_context
