@@ -115,7 +115,7 @@ class Ec2(Agent, AwsMixin):
             )
 
             # Set the scripts
-            scripts_dir = str(Path(__file__).parent.parent / / "scripts")
+            scripts_dir = str(Path(__file__).parent.parent / "scripts")
             self.protocol.apply_script = f"{scripts_dir}/ec2/apply.sh"
             self.protocol.run_script = f"{scripts_dir}/ec2/run.sh"
 
