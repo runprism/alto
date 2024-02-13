@@ -1,0 +1,9 @@
+my_cloud_agent-{{ __version__ }}:
+  infra:
+    type: ec2
+    instance_type: t2.micro
+    protocol: ssm
+  entrypoint:
+    type: jupyter
+    kernel: python3
+    cmd: alto_nb.ipynb
