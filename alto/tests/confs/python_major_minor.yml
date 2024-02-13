@@ -11,7 +11,7 @@ my_cloud_agent:
     cmd: test_fn.print_value
     kwargs:
       value: "hello world"
-  additional_paths:
+  mounts:
     - "{{ Path(__file__).parent }}"
   env:
     ENV_VAR_1: VALUE1

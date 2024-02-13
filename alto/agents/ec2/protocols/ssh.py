@@ -704,7 +704,8 @@ class SSHProtocol(Protocol):
         image: Optional[BaseImage],
         instance_name: str,
         entrypoint: BaseEntrypoint,
-        download_files: List[str],
+        download_files: List[Path],
+        local_mounts: List[str]
     ) -> int:
         """
         Set up our instance. We call this command after `create_resources`, so our
@@ -729,11 +730,6 @@ class SSHProtocol(Protocol):
 
         # Full command
         full_cmd = entrypoint.build_command()
-
-        # Download files
-        download_files_cmd = []
-        for df in download_files:
-            download_files_cmd.append(df)
 
         # Logging styling
         if instance_id is None:
@@ -763,7 +759,7 @@ class SSHProtocol(Protocol):
                 '-n': public_dns_name,
                 '-d': str(alto_wkdir),
                 '-c': full_cmd,
-                '-f': download_files_cmd
+                '-f': [str(_df) for _df in download_files]
             }
         )
         self.set_run_command_attributes(image)

@@ -37,7 +37,7 @@ fi
 # Now, download the files
 for val in "${download_files[@]}"; do
 	echo "Copying ${val} to local machine..."
-	scp -i ${pem_path} ${user}@${public_dns_name}:../../${project_dir}/${val} ${project_dir}/${val} 2> scp.log
+	scp -i ${pem_path} ${user}@${public_dns_name}:../..${val} ${val} 2> scp.log
 	exit_code=$?
 	if [ $exit_code -eq 1 ]; then
 		exit 1

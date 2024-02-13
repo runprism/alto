@@ -195,10 +195,10 @@ class Docker(BaseImage, ConfigMixin):
         else:
             self.server_url = ""
 
-    def prepare_copy_commands(self,
+    def prepare_mount_copy_cmds(self,
         docker_context_path: Path,
         alto_wkdir: Path,
-        additional_paths: List[str],
+        mounts: List[str],
     ) -> Dict[Union[str, Path], str]:
         """
         Prepare the `COPY` statements for the Dockerfile. Note that we don't store our
@@ -209,7 +209,7 @@ class Docker(BaseImage, ConfigMixin):
         args:
             alto_wkdir: Alto working directory
             entrypoint: agent's entrypoint
-            additional_paths: additional paths to copy into your infrastructure
+            mounts: additional paths to copy into your infrastructure
         returns:
             list of COPY statements
         """
@@ -222,7 +222,7 @@ class Docker(BaseImage, ConfigMixin):
         copy_commands: Dict[Union[str, Path], str] = {}
 
         # Flatten the list of paths
-        all_paths = [alto_wkdir] + additional_paths
+        all_paths = [alto_wkdir] + mounts
         flattened_paths = paths_flattener(all_paths)
 
         # Copy directories into tmpdir
@@ -291,20 +291,21 @@ class Docker(BaseImage, ConfigMixin):
             image_build_commands_dockerfile = "\n".join(processed_image_build_cmds)
 
             # Copy commands
-            additional_paths = self.parse_additional_paths(agent_conf)
-            copy_commands = self.prepare_copy_commands(
-                docker_context_path, self.alto_wkdir, additional_paths
+            mounts = self.parse_mounts(agent_conf)
+            mount_cmds = self.prepare_mount_copy_cmds(
+                docker_context_path, self.alto_wkdir, mounts
             )
-            copy_commands_dockerfile = "\n".join([
-                str(cmd) for _, cmd in copy_commands.items()
+            mount_cmds_dockerfile = "\n".join([
+                str(cmd) for _, cmd in mount_cmds.items()
             ])
 
-            # Flattened wkdir
-            alto_wkdir_name = list(copy_commands.keys())[0]
+            # Flattened wkdir. Save this as an attribute so we can access it using a
+            # class instance.
+            alto_wkdir_name = list(mount_cmds.keys())[0]
+            self.workdir = alto_wkdir_name
 
             # Copy requirements into the docker context. If the requirements are not
             # specified, create a blank requirements.txt file in the Docker context
-
             if str(requirements_relative_path) != "":
                 shutil.copyfile(
                     src=(self.alto_wkdir / requirements_relative_path).resolve(),
@@ -328,7 +329,7 @@ class Docker(BaseImage, ConfigMixin):
                 image_build_cmds=jinja_template_overrides.get("image_build_cmds", image_build_commands_dockerfile),  # noqa
                 requirements_txt=jinja_template_overrides.get("requirements_txt", requirements_relative_str),  # noqa
                 alto_wkdir_name=jinja_template_overrides.get("alto_wkdir_name", alto_wkdir_name),  # noqa
-                copy_commands=jinja_template_overrides.get("copy_commands", copy_commands_dockerfile),  # noqa
+                mount_cmds=jinja_template_overrides.get("mount_cmds", mount_cmds_dockerfile),  # noqa
                 env=jinja_template_overrides.get("env", env_dockerfile),
                 cmd=jinja_template_overrides.get("cmd", entrypoint.build_command()),  # noqa
             )

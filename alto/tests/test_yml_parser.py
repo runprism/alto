@@ -16,7 +16,7 @@ from alto.parsers.yml import YmlParser
 EC2_EXAMPLES_DIR = EXAMPLES_DIR / 'ec2'
 INTEGRATION_TEST_DIR = Path(__file__).parent / 'integration'
 EC2_EXAMPLES = [
-    EC2_EXAMPLES_DIR / 'additional_paths.yml',
+    EC2_EXAMPLES_DIR / 'mounts.yml',
     EC2_EXAMPLES_DIR / 'basic_function.yml',
     EC2_EXAMPLES_DIR / 'basic_project.yml',
     EC2_EXAMPLES_DIR / 'basic_script.yml',
@@ -53,7 +53,7 @@ def test_yml_parser():
                     "kwarg1": "value1",
                 }
             },
-            "additional_paths": [
+            "mounts": [
                 str(EC2_EXAMPLES_DIR)
             ]
         }

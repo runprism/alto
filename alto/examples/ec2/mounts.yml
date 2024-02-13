@@ -9,5 +9,5 @@ my_cloud_agent:
     cmd: <script_name>.<function_name>
     kwargs:
       kwarg1: value1
-  additional_paths:
-    path1: test
+  mounts:
+    - "{{ Path(__file__).parent }}"

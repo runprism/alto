@@ -87,7 +87,7 @@ class BaseTask:
         self.check_conf(self.conf, self.name)
         self.confirm_matrix_conf_structure(self.conf)
         self.confirm_entrypoint_conf_structure(self.conf)
-        self.confirm_additional_paths_conf_structure(self.conf)
+        self.confirm_mounts_conf_structure(self.conf)
         self.confirm_image_conf_structure(self.conf)
         self.conf = self.define_download_files(self.conf)
 
@@ -246,22 +246,22 @@ class BaseTask:
         else:
             self.image = None
 
-    def confirm_additional_paths_conf_structure(self,
+    def confirm_mounts_conf_structure(self,
         conf: Dict[str, Any]
     ):
         """
-        If the `additional_paths` section exists (remember, it's an optional key),
+        If the `mounts` section exists (remember, it's an optional key),
         confirm that it is properly structured
 
         args:
             conf: agent configuration
         returns:
-            True if the `additional_paths` section doesn't exist or exists and is
+            True if the `mounts` section doesn't exist or exists and is
             properly structured
         raises:
-            ValueError() if the `additional_paths` section is not properly structured
+            ValueError() if the `mounts` section is not properly structured
         """
-        optional_key = ConfigurationKey("additional_paths", list)
+        optional_key = ConfigurationKey("mounts", list)
         _check_optional_key_in_conf(optional_key, conf)
         return True
 

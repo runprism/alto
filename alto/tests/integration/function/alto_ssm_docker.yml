@@ -7,7 +7,7 @@ my_cloud_agent:
     type: docker
     base: python:3.10.8-slim-bullseye
     registry: ecr
-  additional_paths:
+  mounts:
     - /Users/mihirtrivedi/Desktop/test/
   entrypoint:
     type: function
@@ -16,6 +16,8 @@ my_cloud_agent:
       platform: "{{ __platform__ }}"
       python_version: "{{ __version__ }}"
   requirements: requirements.txt
+  download_files:
+    - "test.txt"
   env:
     AWS_ACCESS_KEY_ID: "{{ env('AWS_ACCESS_KEY_ID') }}"
     AWS_SECRET_ACCESS_KEY: "{{ env('AWS_SECRET_ACCESS_KEY') }}"

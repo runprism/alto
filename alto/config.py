@@ -79,7 +79,9 @@ class ConfigMixin:
         if "download_files" not in agent_conf.keys():
             return []
         download_files = agent_conf["download_files"]
-        return download_files
+
+        # Convert the files to absolute paths
+        return [Path(_df).resolve() for _df in download_files]
 
     def parse_python_version(self, agent_conf: Dict[str, Any]):
         """
@@ -110,18 +112,18 @@ class ConfigMixin:
         else:
             return {}
 
-    def parse_additional_paths(self,
+    def parse_mounts(self,
         agent_conf: Dict[str, Any]
     ) -> List[str]:
         """
-        Parse `additional_paths` in the agent's configuration
+        Parse `mounts` in the agent's configuration
 
         args:
             agent_conf: agent configuration as dictionary
         returns:
             additional paths as a list of strings
         """
-        if "additional_paths" not in agent_conf.keys():
+        if "mounts" not in agent_conf.keys():
             return []
-        additional_paths: List[str] = agent_conf["additional_paths"]
-        return additional_paths
+        mounts: List[str] = agent_conf["mounts"]
+        return mounts

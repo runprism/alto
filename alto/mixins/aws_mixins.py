@@ -12,6 +12,7 @@ import stat
 from typing import Any, Optional, TypedDict
 
 # Type hints
+from mypy_boto3_s3.client import S3Client
 from mypy_boto3_ec2.client import EC2Client
 from mypy_boto3_ec2.type_defs import GroupIdentifierTypeDef
 
@@ -56,6 +57,23 @@ class InstanceData(TypedDict):
 
 
 class AwsMixin:
+
+    def create_bucket(self, s3_client: S3Client, bucket_name: str) -> None:
+        """
+        Create bucket `bucket_name` if it doesn't exist
+
+        args:
+            bucket_name: bucket to create
+        returns:
+            None
+        """
+        resp = s3_client.list_buckets()
+        bucket_exists = False
+        for _bucket in resp["Buckets"]:
+            if _bucket["Name"] == bucket_name:
+                bucket_exists = True
+        if not bucket_exists:
+            s3_client.create_bucket(Bucket=bucket_name)
 
     def create_key_pair(self,
         ec2_client: EC2Client,

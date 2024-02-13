@@ -115,7 +115,7 @@ class Ec2(Agent, AwsMixin):
             )
 
             # Set the scripts
-            scripts_dir = f"{os.path.dirname(__file__)}/scripts"
+            scripts_dir = str(Path(__file__).parent.parent / / "scripts")
             self.protocol.apply_script = f"{scripts_dir}/ec2/apply.sh"
             self.protocol.run_script = f"{scripts_dir}/ec2/run.sh"
 
@@ -485,7 +485,7 @@ class Ec2(Agent, AwsMixin):
         """
         Prior to running our code on the EC2 instance, we first copy our code onto the
         instance using SSH / SCP protocols. Specifically, we copy the current working
-        directory and `additional_paths`.
+        directory and `mounts`.
 
         args:
             alto_wkdir: user's working directory
@@ -494,14 +494,14 @@ class Ec2(Agent, AwsMixin):
             list of project paths
         """
         # Additional paths
-        additional_paths = []
-        if "additional_paths" in agent_conf.keys():
-            additional_paths = [
-                str(_p) for _p in agent_conf["additional_paths"]
+        mounts = []
+        if "mounts" in agent_conf.keys():
+            mounts = [
+                str(_p) for _p in agent_conf["mounts"]
             ]
 
         # Return all paths
-        return [str(alto_wkdir)] + additional_paths
+        return [str(alto_wkdir)] + mounts
 
     def apply(self, overrides={}):
         """
@@ -621,10 +621,13 @@ class Ec2(Agent, AwsMixin):
         current_data = data[self.instance_name]
 
         # Download files
-        download_files = self.agent_conf["download_files"]
-        download_files_cmd: List[str] = []
-        for df in download_files:
-            download_files_cmd.append(df)
+        download_files = self.parse_download_files(self.agent_conf)
+
+        # Paths to copy
+        all_local_mounts = self.get_all_local_mounts(
+            self.alto_wkdir,
+            self.agent_conf,
+        )
 
         # Return code
         self.output_mgr.step_starting("[dodger_blue2]Running entrypoint...[/dodger_blue2]")  # noqa
@@ -636,7 +639,8 @@ class Ec2(Agent, AwsMixin):
                 image=self.image,
                 instance_name=self.instance_name,
                 entrypoint=self.entrypoint,
-                download_files=download_files_cmd,
+                download_files=download_files,
+                local_mounts=all_local_mounts,
             )
             if returncode != 0:
                 self.output_mgr.step_failed()

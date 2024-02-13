@@ -367,6 +367,7 @@ class SSMProtocol(Protocol):
     def upload_file_or_directory_to_s3(self,
         local_file_dir: Path,
         bucket_name: str,
+        instance_id: str,
         instance_name: str,
     ) -> Tuple[List[str], List[str]]:
         """
@@ -376,6 +377,7 @@ class SSMProtocol(Protocol):
         args:
             local_file_dir: local file or directory to copy
             bucket_name: bucket in which to upload the file
+            instance_id: instance ID
             instance_name: instance name
         returns:
             None
@@ -385,13 +387,7 @@ class SSMProtocol(Protocol):
 
         # Create the S3 bucket if it doesn't exist
         s3_client = boto3.client("s3")
-        resp = s3_client.list_buckets()
-        bucket_exists = False
-        for _bucket in resp["Buckets"]:
-            if _bucket["Name"] == bucket_name:
-                bucket_exists = True
-        if not bucket_exists:
-            s3_client.create_bucket(Bucket=bucket_name)
+        self.create_bucket(s3_client, bucket_name)
 
         # Now, copy the local file onto S3
         if Path(local_file_dir).is_file():
@@ -399,7 +395,7 @@ class SSMProtocol(Protocol):
 
             # Truncated path (i.e., S3 path for this file) and full path (i.e., path
             # this file will have in our instance)
-            s3_path = f"{instance_name}/{_fname}"
+            s3_path = f"{instance_name}/{instance_id}/{_fname}"
             full_path = f"{_dir[1:]}/{_fname}"
 
             # Upload files and keep track of paths
@@ -416,7 +412,7 @@ class SSMProtocol(Protocol):
                     # Truncated path (i.e., S3 path for this file) and full path (i.e.,
                     # path this file will have in our instance)
                     dirname = Path(f"{root}/{_file}").parent.name
-                    s3_path = f"{instance_name}/{dirname}/{_file}"
+                    s3_path = f"{instance_name}/{instance_id}/{dirname}/{_file}"
                     full_path = f"{root[1:]}/{_file}"
 
                     s3_client.upload_file(
@@ -437,6 +433,11 @@ class SSMProtocol(Protocol):
         """
         if "download: s3://" in msg:
             return "Mounted " + msg.split(" to ")[-1]
+        elif "upload: " in msg:
+            return "Downloaded artifact " + Path(msg.split(" to ")[-1]).name
+        elif len(re.findall(r'(Completed [0-9]+ Bytes.+$)', msg)) > 0:
+            split = re.split(r'(Completed [0-9]+ Bytes.+$)', msg)
+            return "\n".join([x for x in split if x != ""])
         return msg
 
     def stream_logs(self,
@@ -471,12 +472,14 @@ class SSMProtocol(Protocol):
                 for ev in log_events_resp["events"]:
                     msg = ev["message"]
                     for line in re.split(r'[\n\r]', msg):
+                        if line == "":
+                            continue
                         self.output_mgr.log_output(
                             agent_img_name=instance_name,
                             stage=stage,
                             level="info",
                             msg=self._process_log_msg(line),
-                            renderable_type=f"[dodger_blue2]{msg}[/dodger_blue2]" if stage == alto.ui.StageEnum.AGENT_RUN else None,  # noqa
+                            renderable_type=f"[dodger_blue2]{self._process_log_msg(line)}[/dodger_blue2]" if stage == alto.ui.StageEnum.AGENT_RUN else None,  # noqa
                             is_step_completion=False,
                         )
                 break
@@ -506,12 +509,14 @@ class SSMProtocol(Protocol):
             for ev in log_events_resp["events"]:
                 msg = ev["message"]
                 for line in re.split(r'[\n\r]', msg):
+                    if line == "":
+                        continue
                     self.output_mgr.log_output(
                         agent_img_name=instance_name,
                         stage=stage,
                         level="info",
                         msg=self._process_log_msg(line),
-                        renderable_type=f"[dodger_blue2]{msg}[/dodger_blue2]" if stage == alto.ui.StageEnum.AGENT_RUN else None,  # noqa
+                        renderable_type=f"[dodger_blue2]{self._process_log_msg(line)}[/dodger_blue2]" if stage == alto.ui.StageEnum.AGENT_RUN else None,  # noqa
                         is_step_completion=False,
                     )
 
@@ -713,7 +718,8 @@ class SSMProtocol(Protocol):
                 _reqs_s3, _ = self.upload_file_or_directory_to_s3(
                     Path(requirements_txt_str),
                     bucket,
-                    instance_name
+                    instance_id,
+                    instance_name,
                 )
                 reqs_s3_path = _reqs_s3[0]
                 requirements_txt_cmds.append(
@@ -730,6 +736,7 @@ class SSMProtocol(Protocol):
                 _s3, _full = self.upload_file_or_directory_to_s3(
                     Path(_lm),
                     bucket,
+                    instance_id,
                     instance_name
                 )
                 s3_paths.extend(_s3)
@@ -773,7 +780,8 @@ class SSMProtocol(Protocol):
         image: Optional[BaseImage],
         instance_name: str,
         entrypoint: BaseEntrypoint,
-        download_files: List[str],
+        download_files: List[Path],
+        local_mounts: List[str]
     ):
         # Instance ID
         instance_id = current_data["resources"].get(
@@ -792,8 +800,13 @@ class SSMProtocol(Protocol):
 
         # Command components
         docker_cmds: List[str] = []
+        download_files_cmds: List[str] = []
+        download_files_s3_keys: List[str] = []
         env_var_cmds: List[str] = []
         entrypoint_cmd: List[str] = []
+
+        # S3 client (for downloading files)
+        s3_client = boto3.client("s3")
 
         if image is not None and isinstance(image, Docker):
             registry, _, _ = image.registry.get_login_info()
@@ -808,6 +821,43 @@ class SSMProtocol(Protocol):
                 f'    echo "Failed to start the container."',               # noqa: F541, E501
                 f'fi'                                                       # noqa: F541, E501
             ])
+
+            # Figure out the Docker WORKDIR
+            workdir: Optional[str] = None
+            context_path = alto_wkdir / '.docker_context' if image.context == "" else Path(image.context)  # noqa: E501
+            with open(Path(context_path) / 'Dockerfile', 'r') as f:
+                context_path_lines = f.readlines()
+            for line in context_path_lines:
+                matches = re.findall(r'^WORKDIR (.+)$', line)
+                if len(matches) > 0:
+                    workdir = matches[0]
+                    assert isinstance(workdir, str)
+
+                    # Remove trailing forward slash, if it exists
+                    if workdir[-1] == "/":
+                        workdir = workdir[:-1]
+
+            for _df in download_files:
+                if workdir is None:
+                    raise ValueError("Trying to download artifacts, but no working directory specified in image definition!")  # noqa: E501
+
+                # Path of download file relative to working directory
+                _df_rel = os.path.relpath(_df, alto_wkdir)
+
+                # Create a bucket for the artifacts
+                bucket_name = "alto-ssm-artifacts"
+                self.create_bucket(s3_client, bucket_name)
+
+                # Download file from Docker image --> instance --> S3
+                fname = Path(_df).name
+                key = f"{instance_id}/{fname}"
+                download_files_s3_keys.append(key)
+                download_files_cmds.extend([
+                    f"docker cp $CONTAINERID:{workdir}/{_df_rel} /home/ssm-user/{fname}",  # noqa: E501
+                    f"cat /home/ssm-user/{fname}",
+                    f"aws s3 cp /home/ssm-user/{fname} s3://{bucket_name}/{key}"
+                ])
+
         else:
             # We need to re-define our environment variables prior to running our
             # command
@@ -818,12 +868,26 @@ class SSMProtocol(Protocol):
                 env_var_cmds.append(f"export {key}={value}")
 
             # Full command
-            entrypoint_cmd = [entrypoint.build_command()]
+            entrypoint_cmd = ["cd /home/ssm-user/"] + [entrypoint.build_command()]
 
-        # Download files
-        # ignore for now...
+            # Files to download
+            for _df in download_files:
+                if workdir is None:
+                    raise ValueError("Trying to download artifacts, but no working directory specified in image definition!")  # noqa: E501
 
-        all_cmds = docker_cmds + env_var_cmds + entrypoint_cmd
+                # Create a bucket for the artifacts
+                bucket_name = "alto-ssm-artifacts"
+                self.create_bucket(s3_client, bucket_name)
+
+                # Download the files from the instance to S3
+                fname = Path(_df).name
+                key = f"{instance_id}{_df}"
+                download_files_s3_keys.append(key)
+                download_files_cmds.append(
+                    f"aws s3 cp /home/ssm-user/{fname} s3://{bucket_name}/{key}"
+                )
+
+        all_cmds = docker_cmds + env_var_cmds + entrypoint_cmd + download_files_cmds
         ssm_client = boto3.client("ssm")
         status = self.send_command_and_stream_logs(
             ssm_client,
@@ -832,6 +896,11 @@ class SSMProtocol(Protocol):
             instance_name,
             instance_id
         )
+
+        # Download the files from S3
+        for local_path, s3_key in zip(download_files, download_files_s3_keys):
+            s3_client.download_file("alto-ssm-artifacts", s3_key, str(local_path))
+
         if status != CommandStatus.SUCCESS:
             return 1
 

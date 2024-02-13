@@ -3,7 +3,7 @@ my_cloud_agent:
     type: ec2
     instance_type: t2.micro
     protocol: ssm
-  additional_paths:
+  mounts:
     - /Users/mihirtrivedi/Desktop/test/
   entrypoint:
     type: function
