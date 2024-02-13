@@ -623,12 +623,6 @@ class Ec2(Agent, AwsMixin):
         # Download files
         download_files = self.parse_download_files(self.agent_conf)
 
-        # Paths to copy
-        all_local_mounts = self.get_all_local_mounts(
-            self.alto_wkdir,
-            self.agent_conf,
-        )
-
         # Return code
         self.output_mgr.step_starting("[dodger_blue2]Running entrypoint...[/dodger_blue2]")  # noqa
         try:
@@ -640,7 +634,6 @@ class Ec2(Agent, AwsMixin):
                 instance_name=self.instance_name,
                 entrypoint=self.entrypoint,
                 download_files=download_files,
-                local_mounts=all_local_mounts,
             )
             if returncode != 0:
                 self.output_mgr.step_failed()

@@ -7,8 +7,6 @@ my_cloud_agent:
     type: docker
     base: python:3.10.8-slim-bullseye
     registry: ecr
-  mounts:
-    - /Users/mihirtrivedi/Desktop/test/
   entrypoint:
     type: function
     cmd: main.write_txt_file
@@ -16,8 +14,6 @@ my_cloud_agent:
       platform: "{{ __platform__ }}"
       python_version: "{{ __version__ }}"
   requirements: requirements.txt
-  download_files:
-    - "test.txt"
   env:
     AWS_ACCESS_KEY_ID: "{{ env('AWS_ACCESS_KEY_ID') }}"
     AWS_SECRET_ACCESS_KEY: "{{ env('AWS_SECRET_ACCESS_KEY') }}"

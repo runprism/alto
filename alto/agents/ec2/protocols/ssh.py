@@ -705,7 +705,6 @@ class SSHProtocol(Protocol):
         instance_name: str,
         entrypoint: BaseEntrypoint,
         download_files: List[Path],
-        local_mounts: List[str]
     ) -> int:
         """
         Set up our instance. We call this command after `create_resources`, so our

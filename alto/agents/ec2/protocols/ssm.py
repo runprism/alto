@@ -445,7 +445,10 @@ class SSMProtocol(Protocol):
         stage: alto.ui.StageEnum,
         logs_client: Any,
         log_group_name: str,
-        log_stream_name: str
+        log_stream_name: str,
+        ssm_client: Optional[Any] = None,
+        instance_id: Optional[str] = None,
+        command_id: Optional[str] = None,
     ) -> None:
         """
         Stream the logs from the AWS CloudWatch log group / log stream
@@ -456,9 +459,13 @@ class SSMProtocol(Protocol):
             logs_client: CloudWatch Logs client
             log_group_name: log group name
             log_stream_name: log stream name containing log events
+            instance_id: instance to which the command is sent
+            command_id: command ID. If `None`, then the user is streaming events from a
+                failed command
         returns:
             None
         """
+        flag_command_failed: bool = False
 
         # Get the initial event
         while True:
@@ -485,15 +492,35 @@ class SSMProtocol(Protocol):
                 break
             except Exception as e:
                 if "ResourceNotFoundException" in str(e):
-                    self.output_mgr.log_output(
-                        agent_img_name=instance_name,
-                        stage=stage,
-                        level="info",
-                        msg="Log stream doesn't exist yet...wait 5 seconds and try again"  # noqa: E501
-                    )
-                    time.sleep(5)
+                    # If the user passed a command, then check if it has failed
+                    if command_id and instance_id:
+                        assert ssm_client is not None
+                        status = ssm_client.get_command_invocation(
+                            CommandId=command_id,
+                            InstanceId=instance_id,
+                        )["Status"]
+                        if status in [
+                            CommandStatus.CANCELLED.value,
+                            CommandStatus.FAILED.value,
+                            CommandStatus.TIMEDOUT.value,
+                        ]:
+                            flag_command_failed = True
+                            break
+
+                    # Otherwise, check for the log stream again in 5 seconds.
+                    else:
+                        self.output_mgr.log_output(
+                            agent_img_name=instance_name,
+                            stage=stage,
+                            level="info",
+                            msg="Log stream doesn't exist yet...wait 5 seconds and try again"  # noqa: E501
+                        )
+                        time.sleep(5)
                 else:
                     raise e
+
+        if flag_command_failed:
+            return None
 
         # Keep retrieving and processing new log events
         while 'nextForwardToken' in log_events_resp:
@@ -567,35 +594,34 @@ class SSMProtocol(Protocol):
 
                 # Construct the log stream name
                 stdout_stream = f"{command_id}/{instance_id}/aws-runShellScript/stdout"
-                stderr_stream = f"{command_id}/{instance_id}/aws-runShellScript/stdout"
+                stderr_stream = f"{command_id}/{instance_id}/aws-runShellScript/stderr"
 
                 # Wait two seconds to make sure the command was sent
                 time.sleep(2)
-
-                # If the command has already succeeded / failed, stream the logs
                 self.stream_logs(
                     instance_name,
                     stage,
                     logs_client,
                     instance_name,
                     stdout_stream,
+                    ssm_client,
+                    instance_id,
+                    command_id,
                 )
 
-                # Otherwise, stream the logs continuously
+                # Check if the command is done
                 while status not in [s.value for s in CommandStatus]:
                     status = ssm_client.get_command_invocation(
                         CommandId=command_id,
                         InstanceId=instance_id,
                     )["Status"]
-
-                # If the status failed, then stream the stderr stream
                 if status == CommandStatus.FAILED.value:
                     self.stream_logs(
                         instance_name,
                         stage,
                         logs_client,
                         instance_name,
-                        stderr_stream
+                        stderr_stream,
                     )
 
                 break
@@ -648,8 +674,8 @@ class SSMProtocol(Protocol):
             return code for agent's command
         """
         # Project name and directory
-        project_dir = local_mounts[0]
-        project_name = Path(project_dir).name
+        alto_wkdir = local_mounts[0]
+        project_name = Path(alto_wkdir).name
         bucket = "alto-ssm-mounts"
 
         # SSM client
@@ -696,7 +722,6 @@ class SSMProtocol(Protocol):
         # Otherwise, we need to build commands for virtual environments, dependencies,
         # and mounts.
         else:
-            # Skip Python version, for now...
             python_cli = "3"
 
             # Create virtual environment
@@ -781,7 +806,6 @@ class SSMProtocol(Protocol):
         instance_name: str,
         entrypoint: BaseEntrypoint,
         download_files: List[Path],
-        local_mounts: List[str]
     ):
         # Instance ID
         instance_id = current_data["resources"].get(
@@ -868,23 +892,23 @@ class SSMProtocol(Protocol):
                 env_var_cmds.append(f"export {key}={value}")
 
             # Full command
-            entrypoint_cmd = ["cd /home/ssm-user/"] + [entrypoint.build_command()]
+            entrypoint_cmd = [
+                f"source /home/ssm-user/.venv/{alto_wkdir.name}/bin/activate",
+                f"cd /home/ssm-user{alto_wkdir}"
+            ] + [entrypoint.build_command()]  # noqa: E501
 
             # Files to download
             for _df in download_files:
-                if workdir is None:
-                    raise ValueError("Trying to download artifacts, but no working directory specified in image definition!")  # noqa: E501
-
                 # Create a bucket for the artifacts
                 bucket_name = "alto-ssm-artifacts"
                 self.create_bucket(s3_client, bucket_name)
 
                 # Download the files from the instance to S3
                 fname = Path(_df).name
-                key = f"{instance_id}{_df}"
+                key = f"{instance_id}/{fname}"
                 download_files_s3_keys.append(key)
                 download_files_cmds.append(
-                    f"aws s3 cp /home/ssm-user/{fname} s3://{bucket_name}/{key}"
+                    f"aws s3 cp /home/ssm-user{_df} s3://{bucket_name}/{key}"
                 )
 
         all_cmds = docker_cmds + env_var_cmds + entrypoint_cmd + download_files_cmds
@@ -898,10 +922,10 @@ class SSMProtocol(Protocol):
         )
 
         # Download the files from S3
-        for local_path, s3_key in zip(download_files, download_files_s3_keys):
-            s3_client.download_file("alto-ssm-artifacts", s3_key, str(local_path))
-
         if status != CommandStatus.SUCCESS:
             return 1
+
+        for local_path, s3_key in zip(download_files, download_files_s3_keys):
+            s3_client.download_file("alto-ssm-artifacts", s3_key, str(local_path))
 
         return 0
