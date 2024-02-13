@@ -25,7 +25,7 @@ TEST_FUNCTION = TEST_DIR / 'function'
 TEST_JUPYTER = TEST_DIR / 'jupyter'
 TEST_PROJECT = TEST_DIR / 'project'
 TEST_SCRIPT = TEST_DIR / 'script'
-TEST_DOWNLOAD_FILES = TEST_DIR / 'download_files'
+TEST_DOWNLOAD_FILES = TEST_DIR / 'artifacts'
 
 
 # Tests
@@ -169,9 +169,9 @@ def test_jupyter():
     os.unlink(exec_nb_path)
 
 
-def test_download_files():
+def test_artifacts():
     """
-    Files in `download_files` are successfully downloaded upon a project's successful
+    Files in `artifacts` are successfully downloaded upon a project's successful
     execution.
     """
     # Run, no Docker
@@ -180,14 +180,14 @@ def test_download_files():
     assert proc.returncode == 0
 
     # We should see the executed notebook in our folder
-    output_key = f"{PLATFORM}_{PYTHON_VERSION}_test_download_files".replace(".", "")
+    output_key = f"{PLATFORM}_{PYTHON_VERSION}_test_artifacts".replace(".", "")
     downloaded_file = Path(TEST_DOWNLOAD_FILES / f'{output_key}.txt')
     assert downloaded_file.is_file()
 
     # Contents of file
     with open(downloaded_file, 'r') as f:
         downloaded_file_txt = f.read()
-    expected_txt = f"Hello world from our `{PLATFORM}.{PYTHON_VERSION}.test_download_files` test case!"  # noqa: E501
+    expected_txt = f"Hello world from our `{PLATFORM}.{PYTHON_VERSION}.test_artifacts` test case!"  # noqa: E501
     assert downloaded_file_txt == expected_txt
     os.unlink(downloaded_file)
 
@@ -197,13 +197,13 @@ def test_download_files():
     assert proc.returncode == 0
 
     # We should see the executed notebook in our folder
-    output_key = f"{PLATFORM}_{PYTHON_VERSION}_test_download_files".replace(".", "")
+    output_key = f"{PLATFORM}_{PYTHON_VERSION}_test_artifacts".replace(".", "")
     downloaded_file = Path(TEST_DOWNLOAD_FILES / f'{output_key}.txt')
     assert downloaded_file.is_file()
 
     # Contents of file
     with open(downloaded_file, 'r') as f:
         downloaded_file_txt = f.read()
-    expected_txt = f"Hello world from our `{PLATFORM}.{PYTHON_VERSION}.test_download_files` test case!"  # noqa: E501
+    expected_txt = f"Hello world from our `{PLATFORM}.{PYTHON_VERSION}.test_artifacts` test case!"  # noqa: E501
     assert downloaded_file_txt == expected_txt
     os.unlink(downloaded_file)

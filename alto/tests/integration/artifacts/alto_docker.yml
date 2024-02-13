@@ -9,6 +9,6 @@ my_cloud_agent-{{ __version__ }}:
     registry: ecr
   entrypoint:
     type: script
-    cmd: python main.py --output-name test_download_files --python-version {{ __version__ }} --platform {{ __platform__ }}
-  download_files:
-    - "{{ __platform__ }}_{{ __version__.replace('.', '') }}_test_download_files.txt"
+    cmd: python main.py --output-name test_artifacts --python-version {{ __version__ }} --platform {{ __platform__ }}
+  artifacts:
+    - "{{ __platform__ }}_{{ __version__.replace('.', '') }}_test_artifacts.txt"

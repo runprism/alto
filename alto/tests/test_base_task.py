@@ -60,7 +60,7 @@ def test_normal_conf():
             "ENV_VAR_1": "VALUE1",
             "ENV_VAR_2": "VALUE2",
         },
-        "download_files": [],
+        "artifacts": [],
     }
     assert expected_conf == task.conf
 
@@ -197,7 +197,7 @@ def test_jupyter_entrypoint():
             "ENV_VAR_1": "VALUE1",
             "ENV_VAR_2": "VALUE2",
         },
-        "download_files": [
+        "artifacts": [
             "scripts/alto_nb_exec.ipynb",
         ],
     }

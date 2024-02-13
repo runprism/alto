@@ -621,7 +621,7 @@ class Ec2(Agent, AwsMixin):
         current_data = data[self.instance_name]
 
         # Download files
-        download_files = self.parse_download_files(self.agent_conf)
+        artifacts = self.parse_artifacts(self.agent_conf)
 
         # Return code
         self.output_mgr.step_starting("[dodger_blue2]Running entrypoint...[/dodger_blue2]")  # noqa
@@ -633,7 +633,7 @@ class Ec2(Agent, AwsMixin):
                 image=self.image,
                 instance_name=self.instance_name,
                 entrypoint=self.entrypoint,
-                download_files=download_files,
+                artifacts=artifacts,
             )
             if returncode != 0:
                 self.output_mgr.step_failed()

@@ -704,7 +704,7 @@ class SSHProtocol(Protocol):
         image: Optional[BaseImage],
         instance_name: str,
         entrypoint: BaseEntrypoint,
-        download_files: List[Path],
+        artifacts: List[Path],
     ) -> int:
         """
         Set up our instance. We call this command after `create_resources`, so our
@@ -758,7 +758,7 @@ class SSHProtocol(Protocol):
                 '-n': public_dns_name,
                 '-d': str(alto_wkdir),
                 '-c': full_cmd,
-                '-f': [str(_df) for _df in download_files]
+                '-f': [str(_df) for _df in artifacts]
             }
         )
         self.set_run_command_attributes(image)

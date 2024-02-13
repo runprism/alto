@@ -73,6 +73,6 @@ class Protocol(AwsMixin):
         image: Optional[BaseImage],
         instance_name: str,
         entrypoint: BaseEntrypoint,
-        download_files: List[Path],
+        artifacts: List[Path],
     ):
         raise NotImplementedError

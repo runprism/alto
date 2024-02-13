@@ -10,7 +10,7 @@ do
 		z) password=${OPTARG};;
 		r) repository=${OPTARG};;
 		i) image_name=${OPTARG};;
-		f) download_files=${OPTARG};;
+		f) artifacts=${OPTARG};;
 		d) project_dir=${OPTARG};;
 	esac
 done
@@ -41,7 +41,7 @@ fi
 
 # Now, download the files
 project_name="$(basename -- ${project_dir})"
-for val in "${download_files[@]}"; do
+for val in "${artifacts[@]}"; do
 	# Copy the file from the container to the instances
 	ssh -i ${pem_path} ${user}@${public_dns_name} "docker cp $container_id:./${project_name}/${val} ${val}"
 	exit_code=$?

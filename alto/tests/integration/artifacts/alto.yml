@@ -1,0 +1,10 @@
+my_cloud_agent-{{ __version__ }}:
+  infra:
+    type: ec2
+    instance_type: t2.micro
+    ami_image: ami-01c647eace872fc02
+  entrypoint:
+    type: script
+    cmd: python main.py --output-name test_artifacts --python-version {{ __version__ }} --platform {{ __platform__ }}
+  artifacts:
+    - "{{ __platform__ }}_{{ __version__.replace('.', '') }}_test_artifacts.txt"

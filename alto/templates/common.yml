@@ -2,7 +2,7 @@ requirements: requirements.txt
 env:
   ENV_VAR1: '{{ env("ENV_VAR1") }}'
   ...: ...
-download_files:
+artifacts:
   - '{{ Path(__file__) / "output" / "example_processed_data.csv" }}'
   - ...
 post_build_cmds:

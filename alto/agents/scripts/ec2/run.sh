@@ -8,7 +8,7 @@ do
 		n) public_dns_name=${OPTARG};;
 		d) project_dir=${OPTARG};;
 		c) command=${OPTARG};;
-		f) download_files+=("$OPTARG");;
+		f) artifacts+=("$OPTARG");;
 	esac
 done
 
@@ -35,7 +35,7 @@ if [ $exit_code -eq 1 ]; then
 fi
 
 # Now, download the files
-for val in "${download_files[@]}"; do
+for val in "${artifacts[@]}"; do
 	echo "Copying ${val} to local machine..."
 	scp -i ${pem_path} ${user}@${public_dns_name}:../..${val} ${val} 2> scp.log
 	exit_code=$?

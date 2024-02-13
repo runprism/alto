@@ -65,7 +65,7 @@ class ConfigMixin:
         except KeyError:
             return None
 
-    def parse_download_files(self, agent_conf: Dict[str, Any]):
+    def parse_artifacts(self, agent_conf: Dict[str, Any]):
         """
         Get the files to download from the cloud environment
 
@@ -76,12 +76,12 @@ class ConfigMixin:
             return an empty list.
         """
         # Not all Alto projects will have a `requirements` file.
-        if "download_files" not in agent_conf.keys():
+        if "artifacts" not in agent_conf.keys():
             return []
-        download_files = agent_conf["download_files"]
+        artifacts = agent_conf["artifacts"]
 
         # Convert the files to absolute paths
-        return [Path(_df).resolve() for _df in download_files]
+        return [Path(_df).resolve() for _df in artifacts]
 
     def parse_python_version(self, agent_conf: Dict[str, Any]):
         """

@@ -465,7 +465,7 @@ class SSMProtocol(Protocol):
         returns:
             None
         """
-        flag_command_failed: bool = False
+        flag_command_done: bool = False
 
         # Get the initial event
         while True:
@@ -499,12 +499,8 @@ class SSMProtocol(Protocol):
                             CommandId=command_id,
                             InstanceId=instance_id,
                         )["Status"]
-                        if status in [
-                            CommandStatus.CANCELLED.value,
-                            CommandStatus.FAILED.value,
-                            CommandStatus.TIMEDOUT.value,
-                        ]:
-                            flag_command_failed = True
+                        if status in [cs.value for cs in CommandStatus]:
+                            flag_command_done = True
                             break
 
                     # Otherwise, check for the log stream again in 5 seconds.
@@ -519,7 +515,7 @@ class SSMProtocol(Protocol):
                 else:
                     raise e
 
-        if flag_command_failed:
+        if flag_command_done:
             return None
 
         # Keep retrieving and processing new log events
@@ -805,7 +801,7 @@ class SSMProtocol(Protocol):
         image: Optional[BaseImage],
         instance_name: str,
         entrypoint: BaseEntrypoint,
-        download_files: List[Path],
+        artifacts: List[Path],
     ):
         # Instance ID
         instance_id = current_data["resources"].get(
@@ -824,8 +820,8 @@ class SSMProtocol(Protocol):
 
         # Command components
         docker_cmds: List[str] = []
-        download_files_cmds: List[str] = []
-        download_files_s3_keys: List[str] = []
+        artifacts_cmds: List[str] = []
+        artifacts_s3_keys: List[str] = []
         env_var_cmds: List[str] = []
         entrypoint_cmd: List[str] = []
 
@@ -861,7 +857,7 @@ class SSMProtocol(Protocol):
                     if workdir[-1] == "/":
                         workdir = workdir[:-1]
 
-            for _df in download_files:
+            for _df in artifacts:
                 if workdir is None:
                     raise ValueError("Trying to download artifacts, but no working directory specified in image definition!")  # noqa: E501
 
@@ -875,8 +871,8 @@ class SSMProtocol(Protocol):
                 # Download file from Docker image --> instance --> S3
                 fname = Path(_df).name
                 key = f"{instance_id}/{fname}"
-                download_files_s3_keys.append(key)
-                download_files_cmds.extend([
+                artifacts_s3_keys.append(key)
+                artifacts_cmds.extend([
                     f"docker cp $CONTAINERID:{workdir}/{_df_rel} /home/ssm-user/{fname}",  # noqa: E501
                     f"cat /home/ssm-user/{fname}",
                     f"aws s3 cp /home/ssm-user/{fname} s3://{bucket_name}/{key}"
@@ -898,7 +894,7 @@ class SSMProtocol(Protocol):
             ] + [entrypoint.build_command()]  # noqa: E501
 
             # Files to download
-            for _df in download_files:
+            for _df in artifacts:
                 # Create a bucket for the artifacts
                 bucket_name = "alto-ssm-artifacts"
                 self.create_bucket(s3_client, bucket_name)
@@ -906,12 +902,12 @@ class SSMProtocol(Protocol):
                 # Download the files from the instance to S3
                 fname = Path(_df).name
                 key = f"{instance_id}/{fname}"
-                download_files_s3_keys.append(key)
-                download_files_cmds.append(
+                artifacts_s3_keys.append(key)
+                artifacts_cmds.append(
                     f"aws s3 cp /home/ssm-user{_df} s3://{bucket_name}/{key}"
                 )
 
-        all_cmds = docker_cmds + env_var_cmds + entrypoint_cmd + download_files_cmds
+        all_cmds = docker_cmds + env_var_cmds + entrypoint_cmd + artifacts_cmds
         ssm_client = boto3.client("ssm")
         status = self.send_command_and_stream_logs(
             ssm_client,
@@ -925,7 +921,7 @@ class SSMProtocol(Protocol):
         if status != CommandStatus.SUCCESS:
             return 1
 
-        for local_path, s3_key in zip(download_files, download_files_s3_keys):
+        for local_path, s3_key in zip(artifacts, artifacts_s3_keys):
             s3_client.download_file("alto-ssm-artifacts", s3_key, str(local_path))
 
         return 0

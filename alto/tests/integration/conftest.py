@@ -25,7 +25,7 @@ TEST_FUNCTION = TEST_DIR / 'function'
 TEST_SCRIPT = TEST_DIR / 'script'
 TEST_PROJECT = TEST_DIR / 'project'
 TEST_JUPYTER = TEST_DIR / 'jupyter'
-TEST_DOWNLOAD_FILES = TEST_DIR / 'download_files'
+TEST_DOWNLOAD_FILES = TEST_DIR / 'artifacts'
 TEST_ERROR = TEST_DIR / 'test_apply_error'
 
 
