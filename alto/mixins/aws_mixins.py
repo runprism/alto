@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 import time
 import stat
-from typing import Any, Optional, TypedDict
+from typing import Any, Optional, List, TypedDict
 
 # Type hints
 from mypy_boto3_s3.client import S3Client
@@ -52,7 +52,7 @@ class InstanceData(TypedDict):
     instance_id: str
     public_dns_name: str
     key_name: Optional[str]
-    security_groups: list[GroupIdentifierTypeDef]
+    security_groups: List[GroupIdentifierTypeDef]
     state: State
 
 
