@@ -169,7 +169,13 @@ def test_yml_parser():
                 "type": "script",
                 "cmd": f"python main.py --output-name test_artifacts --python-version {PYTHON_VERSION} --platform {PLATFORM}"  # noqa: E501
             },
-            "artifacts": [f'{PLATFORM}_{PYTHON_VERSION.replace(".", "")}_test_artifacts.txt']  # noqa: E501
+            "mounts": [
+                str(INTEGRATION_TEST_DIR / 'utils.py'),
+                "test_mount.txt",
+            ],
+            "artifacts": [
+                f'{PLATFORM}_{PYTHON_VERSION.replace(".", "")}_test_artifacts.txt'
+            ]
         }
     }
 
