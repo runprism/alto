@@ -23,9 +23,8 @@ import shutil
 TEST_DIR = Path(__file__).parent
 TEST_FUNCTION = TEST_DIR / 'function'
 TEST_SCRIPT = TEST_DIR / 'script'
-TEST_PROJECT = TEST_DIR / 'project'
 TEST_JUPYTER = TEST_DIR / 'jupyter'
-TEST_DOWNLOAD_FILES = TEST_DIR / 'artifacts'
+TEST_ARTIFACTS = TEST_DIR / 'artifacts'
 TEST_ERROR = TEST_DIR / 'test_apply_error'
 
 
@@ -73,9 +72,8 @@ def pytest_sessionfinish():
     for _dir in [
         TEST_FUNCTION,
         TEST_SCRIPT,
-        TEST_PROJECT,
         TEST_JUPYTER,
-        TEST_DOWNLOAD_FILES,
+        TEST_ARTIFACTS,
     ]:
 
         # Delete the resources
