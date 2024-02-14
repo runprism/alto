@@ -396,6 +396,7 @@ class SSHProtocol(Protocol):
                 )
                 time.sleep(1)
             else:
+                instance_id = current_resources[ec2Resource.INSTANCE_ID.value]
                 self.output_mgr.log_output(
                     agent_img_name=instance_name,
                     stage=alto.ui.StageEnum.AGENT_BUILD,

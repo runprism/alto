@@ -125,5 +125,5 @@ class ConfigMixin:
         """
         if "mounts" not in agent_conf.keys():
             return []
-        mounts: List[str] = agent_conf["mounts"]
+        mounts: List[str] = [str(Path(x).resolve()) for x in agent_conf["mounts"]]
         return mounts

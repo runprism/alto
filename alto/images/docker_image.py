@@ -231,14 +231,20 @@ class Docker(BaseImage, ConfigMixin):
                 continue
 
             # Copy
-            shutil.copytree(
-                src=full,
-                dst=docker_context_path / flat,
-                dirs_exist_ok=True,
-                ignore=shutil.ignore_patterns(
-                    *[docker_context_path.name, "requirements"]
+            if Path(full).is_dir():
+                shutil.copytree(
+                    src=full,
+                    dst=docker_context_path / flat,
+                    dirs_exist_ok=True,
+                    ignore=shutil.ignore_patterns(
+                        *[docker_context_path.name, "requirements"]
+                    )
                 )
-            )
+            else:
+                shutil.copy2(
+                    src=full,
+                    dst=docker_context_path / flat,
+                )
 
             # Add copy command
             copy_commands[flat] = f"COPY {str(flat)}/ ./{str(flat)}"

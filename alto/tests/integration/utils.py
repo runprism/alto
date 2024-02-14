@@ -177,12 +177,13 @@ def _apply_integration_test(
     conf_fname: str = "alto.yml",
     docker: bool = False,
     resources_to_check: List[str] = ["key_pair", "security_group", "instance"],
+    resource_name_suffix: str = "",
 ):
     os.chdir(test_path)
-    proc = cli_runner(["apply", "-f", conf_fname])
+    proc = cli_runner(["apply", "-f", conf_fname, "--verbose"])
 
     # Check if EC2 resources exist
-    resource_name = f"{test_path.name.replace('_', '-')}-my_cloud_agent-{PYTHON_VERSION}"  # noqa: E501
+    resource_name = f"{test_path.name.replace('_', '-')}-my_cloud_agent{resource_name_suffix}-{PYTHON_VERSION}"  # noqa: E501
     resources = _resources_exist(resource_name)
     for res in resources_to_check:
         assert resources[res]
@@ -199,6 +200,7 @@ def _build_integration_test_with_s3_file(
     conf_fname: str = "alto.yml",
     image: bool = False,
     resources_to_check: List[str] = ["key_pair", "security_group", "instance"],
+    resource_name_suffix: str = "",
 ):
     os.chdir(test_path)
 
@@ -208,10 +210,10 @@ def _build_integration_test_with_s3_file(
     delete_s3_file(file_s3_uri)
 
     # Invoke the `build` command
-    proc = cli_runner(["build", "-f", conf_fname, "--no-delete-success", "--no-delete-failure"])  # noqa: E501
+    proc = cli_runner(["build", "-f", conf_fname, "--no-delete-success", "--no-delete-failure", "--verbose"])  # noqa: E501
 
     # Check if EC2 resources exist
-    resource_name = f"{test_path.name}-my_cloud_agent-{PYTHON_VERSION}"
+    resource_name = f"{test_path.name}-my_cloud_agent{resource_name_suffix}-{PYTHON_VERSION}"  # noqa: E501
     resources = _resources_exist(resource_name)
     for res in resources_to_check:
         assert resources[res]

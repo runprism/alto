@@ -74,7 +74,7 @@ class YmlParser:
         self.globals = jinja_template.globals
 
         # Store the path of the file itself in `__file__`
-        self.globals["__file__"] = str(self.fpath)
+        self.globals["__file__"] = str(self.fpath.resolve())
         self.globals["__version__"] = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"  # noqa: E501
         self.globals["__platform__"] = sys.platform
 

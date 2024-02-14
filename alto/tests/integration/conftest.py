@@ -12,6 +12,7 @@ from alto.tests.integration.utils import (
     cli_runner,
     ecr_repository_exists,
     delete_ecr_repository,
+    instance_profile_exists,
 )
 from alto.constants import (
     PYTHON_VERSION,
@@ -80,15 +81,22 @@ def pytest_sessionfinish():
         os.chdir(_dir)
         proc = cli_runner(["delete", "-f", "alto_docker.yml"])
         assert proc.returncode == 0
+        proc = cli_runner(["delete", "-f", "alto_ssm_docker.yml"])
+        assert proc.returncode == 0
 
         # Resources should no longer exist
-        resource_name = f"{_dir.name}-my_cloud_agent-{PYTHON_VERSION}"
-        assert not key_pair_exists(resource_name)
-        assert not security_group_exists(resource_name)
-        assert not running_instance_exists(resource_name)
+        for res in [
+            f"{_dir.name}-my_cloud_agent-{PYTHON_VERSION}",
+            f"{_dir.name}-my_cloud_agent-ssm-{PYTHON_VERSION}",
+        ]:
+            assert not key_pair_exists(res)
+            assert not security_group_exists(res)
+            assert not running_instance_exists(res)
+            assert not instance_profile_exists(f"{res}-profile")
 
-        # Also, delete the ECR repositories
-        delete_ecr_repository(resource_name)
-        assert not ecr_repository_exists(resource_name)
+            # Also, delete the ECR repositories
+            delete_ecr_repository(res)
+            assert not ecr_repository_exists(res)
+
         if Path(_dir / '.docker_context').is_dir():
             shutil.rmtree(_dir / '.docker_context', ignore_errors=True)

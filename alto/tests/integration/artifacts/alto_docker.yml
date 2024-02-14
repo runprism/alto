@@ -10,5 +10,7 @@ my_cloud_agent-{{ __version__ }}:
   entrypoint:
     type: script
     cmd: python main.py --output-name test_artifacts --python-version {{ __version__ }} --platform {{ __platform__ }}
+  mounts:
+    - "{{ Path(__file__).parent.parent / 'utils.py' }}"
   artifacts:
     - "{{ __platform__ }}_{{ __version__.replace('.', '') }}_test_artifacts.txt"

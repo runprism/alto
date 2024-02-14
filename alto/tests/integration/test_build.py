@@ -26,7 +26,7 @@ TEST_ARTIFACTS = TEST_DIR / 'artifacts'
 
 
 # Tests
-def test_function():
+def test_function_ssh():
     """
     Test the output of a function deployment
     """
@@ -40,22 +40,30 @@ def test_function():
         "alto_docker.yml",
         True
     )
+
+
+def test_function_ssm():
+    """
+    Test the output of a function deployment
+    """
     _build_integration_test_with_s3_file(
         TEST_FUNCTION,
         "test_function",
         "alto_ssm.yml",
-        resources_to_check=["security_group", "instance", "instance_profile"],
+        resources_to_check=["instance", "instance_profile"],
+        resource_name_suffix="-ssm",
     )
     _build_integration_test_with_s3_file(
         TEST_FUNCTION,
         "test_function",
         "alto_ssm_docker.yml",
         True,
-        resources_to_check=["security_group", "instance", "instance_profile"],
+        resources_to_check=["instance", "instance_profile"],
+        resource_name_suffix="-ssm",
     )
 
 
-def test_script():
+def test_script_ssh():
     """
     Test the output of a function deployment
     """
@@ -69,77 +77,118 @@ def test_script():
         "alto_docker.yml",
         True
     )
+
+
+def test_script_ssm():
     _build_integration_test_with_s3_file(
         TEST_SCRIPT,
         "test_script",
         "alto_ssm.yml",
-        resources_to_check=["security_group", "instance", "instance_profile"],
+        resources_to_check=["instance", "instance_profile"],
+        resource_name_suffix="-ssm",
     )
     _build_integration_test_with_s3_file(
         TEST_SCRIPT,
         "test_script",
         "alto_ssm_docker.yml",
         True,
-        resources_to_check=["security_group", "instance", "instance_profile"],
+        resources_to_check=["instance", "instance_profile"],
+        resource_name_suffix="-ssm",
     )
 
 
-def test_jupyter():
+def _jupyter_run(
+    conf_fname: str,
+    docker: bool = False,
+    resources_to_check: List[str] = ["key_pair", "security_group", "instance"],
+    resource_name_suffix: str = ""
+):
+    _apply_integration_test(
+        test_path=TEST_JUPYTER,
+        conf_fname=conf_fname,
+        docker=docker,
+        resources_to_check=resources_to_check,
+        resource_name_suffix=resource_name_suffix,
+    )
+    proc = cli_runner(["run", "-f", conf_fname, "--no-delete-success", "--no-delete-failure", "--verbose"])  # noqa: E501
+    assert proc.returncode == 0
+
+    # We should see the executed notebook in our folder
+    exec_nb_path = Path(TEST_JUPYTER / 'src' / 'alto_nb_exec.ipynb')
+    assert exec_nb_path.is_file()
+    os.unlink(exec_nb_path)
+
+
+def test_jupyter_ssh():
     """
     Test that a Jupyter notebook executes and that we download the executed notebook
     after a successful run.
     """
-    # Run, no Docker
-    _apply_integration_test(TEST_JUPYTER)
-    proc = cli_runner(["run", "-f", "alto.yml", "--no-delete-success", "--no-delete-failure"])  # noqa: E501
+    _jupyter_run("alto.yml")
+    _jupyter_run("alto_docker.yml", docker=True)
+
+
+def test_jupyter_ssm():
+    _jupyter_run(
+        "alto_ssm.yml",
+        resources_to_check=["instance", "instance_profile"],
+        resource_name_suffix="-ssm",
+    )
+    _jupyter_run(
+        "alto_ssm_docker.yml",
+        docker=True,
+        resources_to_check=["instance", "instance_profile"],
+        resource_name_suffix="-ssm",
+    )
+
+
+def _artifacts_run(
+    conf_fname: str,
+    docker: bool = False,
+    resources_to_check: List[str] = ["key_pair", "security_group", "instance"],
+    resource_name_suffix: str = "",
+):
+    _apply_integration_test(
+        test_path=TEST_ARTIFACTS,
+        conf_fname=conf_fname,
+        docker=docker,
+        resources_to_check=resources_to_check,
+        resource_name_suffix=resource_name_suffix,
+    )
+    proc = cli_runner(["run", "-f", conf_fname, "--no-delete-success", "--no-delete-failure", "--verbose"])  # noqa: E501
     assert proc.returncode == 0
 
     # We should see the executed notebook in our folder
-    exec_nb_path = Path(TEST_JUPYTER / 'alto_nb_exec.ipynb')
-    assert exec_nb_path.is_file()
-    os.unlink(exec_nb_path)
+    output_key = f"{PLATFORM}_{PYTHON_VERSION}_test_artifacts".replace(".", "")
+    downloaded_file = Path(TEST_ARTIFACTS / f'{output_key}.txt')
+    assert downloaded_file.is_file()
 
-    # Run, with Docker
-    _apply_integration_test(TEST_JUPYTER, "alto_docker.yml", True)
-    proc = cli_runner(["run", "-f", "alto_docker.yml", "--no-delete-success", "--no-delete-failure"])  # noqa: E501
-    assert proc.returncode == 0
-    assert exec_nb_path.is_file()
-    os.unlink(exec_nb_path)
+    # Contents of file
+    with open(downloaded_file, 'r') as f:
+        downloaded_file_txt = f.read()
+    expected_txt = f"Hello world from our `{PLATFORM}.{PYTHON_VERSION}.test_artifacts` test case!"  # noqa: E501
+    assert downloaded_file_txt == expected_txt
+    os.unlink(downloaded_file)
 
 
-def test_artifacts():
+def test_artifacts_ssh():
     """
     Files in `artifacts` are successfully downloaded upon a project's successful
     execution.
     """
-    def _run(
-        conf_fname: str,
-        docker: bool = False,
-        resources_to_check: List[str] = ["key_pair", "security_group", "instance"]
-    ):
-        _apply_integration_test(
-            test_path=TEST_ARTIFACTS,
-            conf_fname=conf_fname,
-            docker=docker,
-            resources_to_check=resources_to_check
-        )
-        proc = cli_runner(["run", "-f", conf_fname, "--no-delete-success", "--no-delete-failure"])  # noqa: E501
-        assert proc.returncode == 0
+    _artifacts_run("alto.yml")
+    _artifacts_run("alto_docker.yml", docker=True)
 
-        # We should see the executed notebook in our folder
-        output_key = f"{PLATFORM}_{PYTHON_VERSION}_test_artifacts".replace(".", "")
-        downloaded_file = Path(TEST_ARTIFACTS / f'{output_key}.txt')
-        assert downloaded_file.is_file()
 
-        # Contents of file
-        with open(downloaded_file, 'r') as f:
-            downloaded_file_txt = f.read()
-        expected_txt = f"Hello world from our `{PLATFORM}.{PYTHON_VERSION}.test_artifacts` test case!"  # noqa: E501
-        assert downloaded_file_txt == expected_txt
-        os.unlink(downloaded_file)
-
-    # Run, with Docker
-    _run("alto.yml")
-    _run("alto_docker.yml")
-    _run("alto_ssm.yml")
-    _run("alto_ssm_docker.yml")
+def test_artifacts_ssm():
+    _artifacts_run(
+        "alto_ssm.yml",
+        resources_to_check=["instance", "instance_profile"],
+        resource_name_suffix="-ssm",
+    )
+    _artifacts_run(
+        "alto_ssm_docker.yml",
+        docker=True,
+        resources_to_check=["instance", "instance_profile"],
+        resource_name_suffix="-ssm",
+    )
