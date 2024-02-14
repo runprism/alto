@@ -5,5 +5,8 @@ my_cloud_agent-ssm-{{ __version__ }}:
     protocol: ssm
   entrypoint:
     type: jupyter
+    src: src
     kernel: python3
     cmd: alto_nb.ipynb
+  artifacts:
+    - test.txt

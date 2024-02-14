@@ -5,5 +5,8 @@ my_cloud_agent-{{ __version__ }}:
     ami_image: ami-01c647eace872fc02
   entrypoint:
     type: jupyter
+    src: src
     kernel: python3
     cmd: alto_nb.ipynb
+  artifacts:
+    - "test.txt"

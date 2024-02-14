@@ -4,13 +4,16 @@ Base protocol, inherited by the SSHProtocol and SSMProtocol classes.
 
 # Imports
 import argparse
+import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+import re
+from typing import Any, Dict, List, Optional, Tuple
 
 # Alto imports
 from alto.constants import EC2_INSTANCE_TYPE
 from alto.entrypoints import BaseEntrypoint
 from alto.images import BaseImage
+from alto.images.docker_image import Docker
 from alto.mixins.aws_mixins import (
     AwsMixin,
 )
@@ -76,3 +79,41 @@ class Protocol(AwsMixin):
         artifacts: List[Path],
     ):
         raise NotImplementedError
+
+    def get_workdir_and_artifacts_relative_dir(self,
+        image: Optional[BaseImage],
+        alto_wkdir: Path,
+        artifacts: List[Path]
+    ) -> Tuple[str, List[str]]:
+        workdir: Optional[str] = None
+        artifacts_relative_paths: List[str] = []
+
+        if image is not None and isinstance(image, Docker):
+            # First, define the WORKDIR used by the Docker image
+            context_path = alto_wkdir / '.docker_context' if image.context == "" else Path(image.context)  # noqa: E501
+            with open(Path(context_path) / 'Dockerfile', 'r') as f:
+                context_path_lines = f.readlines()
+            for line in context_path_lines:
+                matches = re.findall(r'^WORKDIR (.+)$', line)
+                if len(matches) > 0:
+                    workdir = matches[0]
+                    assert isinstance(workdir, str)
+
+                    # Remove trailing forward slash, if it exists
+                    if workdir[-1] == "/":
+                        workdir = workdir[:-1]
+
+            # Next, define the artifact paths relative to the WORKDIR path
+            for _df in artifacts:
+                if workdir is None:
+                    raise ValueError("Trying to download artifacts, but no working directory specified in image definition!")  # noqa: E501
+
+                # Path of download file relative to working directory
+                _df_rel = os.path.relpath(_df, alto_wkdir)
+                artifacts_relative_paths.append(_df_rel)
+        else:
+            workdir = str(alto_wkdir)
+            artifacts_relative_paths = [str(x) for x in artifacts]
+
+        assert isinstance(workdir, str)
+        return workdir, artifacts_relative_paths

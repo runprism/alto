@@ -748,7 +748,14 @@ class SSHProtocol(Protocol):
         if not isinstance(public_dns_name, str):
             raise ValueError("incompatible public DNS name!")
 
-        # The agent data should exist...Build the shell command
+        # Modified artifacts list
+        image_workdir, artifacts_paths = self.get_workdir_and_artifacts_relative_dir(
+            image,
+            alto_wkdir,
+            artifacts
+        )
+
+        # Build the shell command
         self.run_command = AgentCommand(
             executable='/bin/bash',
             script=self.run_script,
@@ -756,9 +763,9 @@ class SSHProtocol(Protocol):
                 '-p': str(pem_key_path),
                 '-u': 'ec2-user',
                 '-n': public_dns_name,
-                '-d': str(alto_wkdir),
+                '-d': image_workdir,
                 '-c': full_cmd,
-                '-f': [str(_df) for _df in artifacts]
+                '-f': artifacts_paths,
             }
         )
         self.set_run_command_attributes(image)

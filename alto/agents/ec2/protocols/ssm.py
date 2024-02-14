@@ -604,6 +604,16 @@ class SSMProtocol(Protocol):
                     instance_id,
                     command_id,
                 )
+                self.stream_logs(
+                    instance_name,
+                    stage,
+                    logs_client,
+                    instance_name,
+                    stderr_stream,
+                    ssm_client,
+                    instance_id,
+                    command_id,
+                )
 
                 # Check if the command is done
                 while status not in [s.value for s in CommandStatus]:
@@ -611,15 +621,6 @@ class SSMProtocol(Protocol):
                         CommandId=command_id,
                         InstanceId=instance_id,
                     )["Status"]
-                if status == CommandStatus.FAILED.value:
-                    self.stream_logs(
-                        instance_name,
-                        stage,
-                        logs_client,
-                        instance_name,
-                        stderr_stream,
-                    )
-
                 break
 
             except Exception as e:
@@ -842,40 +843,26 @@ class SSMProtocol(Protocol):
                 f'fi'                                                       # noqa: F541, E501
             ])
 
-            # Figure out the Docker WORKDIR
-            workdir: Optional[str] = None
-            context_path = alto_wkdir / '.docker_context' if image.context == "" else Path(image.context)  # noqa: E501
-            with open(Path(context_path) / 'Dockerfile', 'r') as f:
-                context_path_lines = f.readlines()
-            for line in context_path_lines:
-                matches = re.findall(r'^WORKDIR (.+)$', line)
-                if len(matches) > 0:
-                    workdir = matches[0]
-                    assert isinstance(workdir, str)
+            image_workdir, artifacts_paths = self.get_workdir_and_artifacts_relative_dir(  # noqa: E501
+                image,
+                alto_wkdir,
+                artifacts
+            )
 
-                    # Remove trailing forward slash, if it exists
-                    if workdir[-1] == "/":
-                        workdir = workdir[:-1]
-
-            for _df in artifacts:
-                if workdir is None:
-                    raise ValueError("Trying to download artifacts, but no working directory specified in image definition!")  # noqa: E501
-
-                # Path of download file relative to working directory
-                _df_rel = os.path.relpath(_df, alto_wkdir)
-
-                # Create a bucket for the artifacts
+            # Create a bucket for the artifacts, if needed
+            if len(artifacts_paths) > 0:
                 bucket_name = "alto-ssm-artifacts"
                 self.create_bucket(s3_client, bucket_name)
 
                 # Download file from Docker image --> instance --> S3
-                fname = Path(_df).name
-                key = f"{instance_id}/{fname}"
-                artifacts_s3_keys.append(key)
-                artifacts_cmds.extend([
-                    f"docker cp $CONTAINERID:{workdir}/{_df_rel} /home/ssm-user/{fname}",  # noqa: E501
-                    f"aws s3 cp /home/ssm-user/{fname} s3://{bucket_name}/{key}"
-                ])
+                for _df in artifacts_paths:
+                    fname = Path(_df).name
+                    key = f"{instance_id}/{fname}"
+                    artifacts_s3_keys.append(key)
+                    artifacts_cmds.extend([
+                        f"docker cp $CONTAINERID:{image_workdir}/{_df} {fname}",  # noqa: E501
+                        f"aws s3 cp {fname} s3://{bucket_name}/{key}"
+                    ])
 
         else:
             # We need to re-define our environment variables prior to running our
@@ -895,17 +882,17 @@ class SSMProtocol(Protocol):
             ] + [entrypoint.build_command()]  # noqa: E501
 
             # Files to download
-            for _df in artifacts:
+            for _relpath in artifacts:
                 # Create a bucket for the artifacts
                 bucket_name = "alto-ssm-artifacts"
                 self.create_bucket(s3_client, bucket_name)
 
                 # Download the files from the instance to S3
-                fname = Path(_df).name
+                fname = Path(_relpath).name
                 key = f"{instance_id}/{fname}"
                 artifacts_s3_keys.append(key)
                 artifacts_cmds.append(
-                    f"aws s3 cp /home/ssm-user{_df} s3://{bucket_name}/{key}"
+                    f"aws s3 cp /home/ssm-user{_relpath} s3://{bucket_name}/{key}"
                 )
 
         all_cmds = docker_cmds + env_var_cmds + entrypoint_cmd + artifacts_cmds

@@ -40,10 +40,10 @@ else
 fi
 
 # Now, download the files
-project_name="$(basename -- ${project_dir})"
 for val in "${artifacts[@]}"; do
+	fname="$(basename -- ${val})"
 	# Copy the file from the container to the instances
-	ssh -i ${pem_path} ${user}@${public_dns_name} "docker cp $container_id:./${project_name}/${val} ${val}"
+	ssh -i ${pem_path} ${user}@${public_dns_name} "docker cp $container_id:./${project_dir}/${val} ${fname}"
 	exit_code=$?
 	if [ $exit_code -eq 1 ]; then
 		exit 1
@@ -51,7 +51,7 @@ for val in "${artifacts[@]}"; do
 
 	# Copy the file from the instance to local
 	echo "Copying ${val} to local machine..."
-	scp -i ${pem_path} ${user}@${public_dns_name}:${val} ${project_dir}/${val} 2> scp.log
+	scp -i ${pem_path} ${user}@${public_dns_name}:${fname} ${val} 2> scp.log
 	exit_code=$?
 	if [ $exit_code -eq 1 ]; then
 		exit 1
