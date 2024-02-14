@@ -6,6 +6,10 @@ Integration tests (i.e., full runs on micro EC2 instances).
 import boto3
 import subprocess
 from typing import List, Optional
+from pathlib import Path
+import os
+
+from alto.constants import PYTHON_VERSION, PLATFORM
 
 
 # Tests
@@ -156,3 +160,76 @@ def delete_ecr_repository(repository_name):
     except Exception as e:
         print(f"An error occurred: {e}")
         return False
+
+
+def _apply_integration_test(
+    test_path: Path,
+    conf_fname: str = "alto.yml",
+    docker: bool = False,
+):
+    os.chdir(test_path)
+    proc = cli_runner(["apply", "-f", conf_fname])
+
+    # Check if EC2 resources exist
+    resource_name = f"{test_path.name.replace('_', '-')}-my_cloud_agent-{PYTHON_VERSION}"  # noqa: E501
+    resources = _resources_exist(resource_name)
+    assert resources["key_pair"]
+    assert resources["security_group"]
+    assert resources["instance"]
+    assert proc.returncode == 0
+
+    # Check if the repository exists
+    if docker:
+        assert ecr_repository_exists(resource_name)
+
+
+def _run_integration_test(
+    fname_name: str,
+    run_args: List[str],
+):
+    # Delete file in S3, if it exists
+    output_key = f"{PLATFORM}_{PYTHON_VERSION}_{fname_name}".replace(".", "")
+    file_s3_uri = f"s3://alto-dev-tests/tests/{output_key}.txt"
+    delete_s3_file(file_s3_uri)
+
+    # Run
+    proc = cli_runner(run_args)
+    assert proc.returncode == 0
+    test_output = s3_file_exists(file_s3_uri)
+    expected_output = f"Hello world from our `{PLATFORM}.{PYTHON_VERSION}.{fname_name}` test case!"  # noqa: E501
+    assert test_output == expected_output
+    delete_s3_file(file_s3_uri)
+
+
+def _build_integration_test(
+    test_path: Path,
+    fname_name: str,
+    conf_fname: str = "alto.yml",
+    image: bool = False
+):
+    os.chdir(test_path)
+
+    # Delete file in S3, if it exists
+    output_key = f"{PLATFORM}_{PYTHON_VERSION}_{fname_name}".replace(".", "")
+    file_s3_uri = f"s3://alto-dev-tests/tests/{output_key}.txt"
+    delete_s3_file(file_s3_uri)
+
+    # Invoke the `build` command
+    proc = cli_runner(["build", "-f", conf_fname, "--no-delete-success", "--no-delete-failure"])  # noqa: E501
+
+    # Check if EC2 resources exist
+    resource_name = f"{test_path.name}-my_cloud_agent-{PYTHON_VERSION}"
+    resources = _resources_exist(resource_name)
+    assert resources["key_pair"]
+    assert resources["security_group"]
+    assert resources["instance"]
+    assert proc.returncode == 0
+
+    # Check output
+    test_output = s3_file_exists(file_s3_uri)
+    expected_output = f"Hello world from our `{PLATFORM}.{PYTHON_VERSION}.{fname_name}` test case!"  # noqa: E501
+    assert test_output == expected_output
+
+    # Check if the Docker image exists
+    if image:
+        ecr_repository_exists(f"{test_path.name}-my_cloud_agent-{PYTHON_VERSION}")

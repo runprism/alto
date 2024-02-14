@@ -874,13 +874,15 @@ class SSMProtocol(Protocol):
                 artifacts_s3_keys.append(key)
                 artifacts_cmds.extend([
                     f"docker cp $CONTAINERID:{workdir}/{_df_rel} /home/ssm-user/{fname}",  # noqa: E501
-                    f"cat /home/ssm-user/{fname}",
                     f"aws s3 cp /home/ssm-user/{fname} s3://{bucket_name}/{key}"
                 ])
 
         else:
             # We need to re-define our environment variables prior to running our
             # command
+            env_var_cmds = [
+                f"source /home/ssm-user/.venv/{alto_wkdir.name}/bin/activate"
+            ]
             env_vars: Dict[str, str] = {}
             if "env" in self.agent_conf.keys():
                 env_vars = self.agent_conf["env"]
@@ -889,7 +891,6 @@ class SSMProtocol(Protocol):
 
             # Full command
             entrypoint_cmd = [
-                f"source /home/ssm-user/.venv/{alto_wkdir.name}/bin/activate",
                 f"cd /home/ssm-user{alto_wkdir}"
             ] + [entrypoint.build_command()]  # noqa: E501
 

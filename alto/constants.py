@@ -47,7 +47,6 @@ SUPPORTED_IMAGE_REGISTRIES = [
 SUPPORTED_ENTRYPOINTS = [
     "script",
     "function",
-    "project",
     "jupyter",
 ]
 

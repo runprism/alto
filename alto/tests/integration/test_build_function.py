@@ -8,7 +8,6 @@ from alto.tests.integration.utils import (
     _build_integration_test
 )
 
-
 # Constants
 TEST_DIR = Path(__file__).parent
 TEST_FUNCTION = TEST_DIR / 'function'

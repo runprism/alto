@@ -25,7 +25,7 @@ from alto.alto_logger import (
 from alto.entrypoints import (  # noqa
     MetaEntrypoint,
     BaseEntrypoint,
-    Project,
+    Script,
     Function,
     Jupyter,
 )
@@ -298,7 +298,7 @@ class BaseTask:
 
             # We should donwload the executed notebook. The path of the executed
             # notebook will be relative to `src`.
-            output_path = Path(ep.src) / ep.output_path
+            output_path = Path(self.alto_wkdir) / ep.src / ep.output_path
             if str(output_path) not in artifacts:
                 artifacts.append(str(output_path))
 

@@ -6,13 +6,11 @@
 import os
 from pathlib import Path
 from alto.tests.integration.utils import (
-    _resources_exist,
-    s3_file_exists,
-    delete_s3_file,
     cli_runner,
-    ecr_repository_exists,
+    _resources_exist,
+    _apply_integration_test,
+    _run_integration_test,
 )
-from typing import List
 from alto.constants import (
     PYTHON_VERSION,
     PLATFORM,
@@ -29,45 +27,6 @@ TEST_DOWNLOAD_FILES = TEST_DIR / 'artifacts'
 
 
 # Tests
-def _apply_integration_test(
-    test_path: Path,
-    conf_fname: str = "alto.yml",
-    docker: bool = False,
-):
-    os.chdir(test_path)
-    proc = cli_runner(["apply", "-f", conf_fname])
-
-    # Check if EC2 resources exist
-    resource_name = f"{test_path.name.replace('_', '-')}-my_cloud_agent-{PYTHON_VERSION}"  # noqa: E501
-    resources = _resources_exist(resource_name)
-    assert resources["key_pair"]
-    assert resources["security_group"]
-    assert resources["instance"]
-    assert proc.returncode == 0
-
-    # Check if the repository exists
-    if docker:
-        assert ecr_repository_exists(resource_name)
-
-
-def _run_integration_test(
-    fname_name: str,
-    run_args: List[str],
-):
-    # Delete file in S3, if it exists
-    output_key = f"{PLATFORM}_{PYTHON_VERSION}_{fname_name}".replace(".", "")
-    file_s3_uri = f"s3://alto-dev-tests/tests/{output_key}.txt"
-    delete_s3_file(file_s3_uri)
-
-    # Run
-    proc = cli_runner(run_args)
-    assert proc.returncode == 0
-    test_output = s3_file_exists(file_s3_uri)
-    expected_output = f"Hello world from our `{PLATFORM}.{PYTHON_VERSION}.{fname_name}` test case!"  # noqa: E501
-    assert test_output == expected_output
-    delete_s3_file(file_s3_uri)
-
-
 def test_function():
     """
     Test the output of a function deployment

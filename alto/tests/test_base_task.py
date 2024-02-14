@@ -43,6 +43,8 @@ def test_normal_conf():
             "instance_type": "t2.micro",
             "ami_image": "ami-01c647eace872fc02",
             "python_version": "",
+            "protocol": "ssh",
+            "instance_profile": None,
         },
         "requirements": "requirements.txt",
         "entrypoint": {
@@ -185,6 +187,8 @@ def test_jupyter_entrypoint():
             "instance_type": "t2.micro",
             "ami_image": "ami-01c647eace872fc02",
             "python_version": "",
+            "protocol": "ssm",
+            "instance_profile": "dummy",
         },
         "requirements": "requirements.txt",
         "entrypoint": {
@@ -198,7 +202,7 @@ def test_jupyter_entrypoint():
             "ENV_VAR_2": "VALUE2",
         },
         "artifacts": [
-            "scripts/alto_nb_exec.ipynb",
+            str(CONFs / "scripts" / "alto_nb_exec.ipynb"),
         ],
     }
     assert expected_conf == task.conf

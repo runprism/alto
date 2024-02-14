@@ -3,6 +3,8 @@ my_cloud_agent:
     type: ec2
     instance_type: t2.micro
     ami_image: ami-01c647eace872fc02
+    protocol: ssm
+    instance_profile: dummy
   requirements: requirements.txt
   entrypoint:
     type: jupyter
