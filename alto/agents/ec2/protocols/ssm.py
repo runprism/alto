@@ -611,6 +611,7 @@ class SSMProtocol(Protocol):
         ssm_client: Any,
         stage: alto.ui.StageEnum,
         cmd: List[str],
+        log_group_name: str,
         instance_name: str,
         instance_id: str,
     ) -> CommandStatus:
@@ -623,7 +624,6 @@ class SSMProtocol(Protocol):
         status = None
 
         # Create a new log group for the command
-        log_group_name = self.resource_data["resources"][ec2Resource.LOG_GROUP]
         logs_client = boto3.client("logs")
         while True:
             log_group_arn = self.get_log_group_arn(
@@ -748,12 +748,23 @@ class SSMProtocol(Protocol):
         project_name = Path(alto_wkdir).name
         bucket = "alto-ssm-mounts"
 
-        # SSM client
-        ssm_client = boto3.client('ssm')
+        # Instance ID and log group
         instance_id = current_data["resources"].get(
             ec2Resource.INSTANCE_ID.value,
             None
         )
+        log_group_name = current_data["resources"].get(
+            ec2Resource.LOG_GROUP.value,
+            None
+        )
+        if instance_id is None or log_group_name is None:
+            self.output_mgr.log_output(  # type: ignore
+                agent_img_name=instance_name,
+                stage=alto.ui.StageEnum.AGENT_RUN,
+                level="error",
+                msg="Agent data not found! Use `alto apply` to create your agent",
+            )
+            return 1
 
         # All command components
         docker_cmds: List[str] = []
@@ -856,10 +867,12 @@ class SSMProtocol(Protocol):
 
         # Because of the race condition, retry sending the command until it's
         # successfully sent.
+        ssm_client = boto3.client('ssm')
         status = self.send_command_and_stream_logs(
             ssm_client,
             alto.ui.StageEnum.AGENT_BUILD,
             all_cmds,
+            log_group_name,
             instance_name,
             instance_id
         )
@@ -877,13 +890,16 @@ class SSMProtocol(Protocol):
         entrypoint: BaseEntrypoint,
         artifacts: List[Path],
     ):
-        # Instance ID
+        # Instance ID and log group name
         instance_id = current_data["resources"].get(
             ec2Resource.INSTANCE_ID.value, None
         )
+        log_group_name = current_data["resources"].get(
+            ec2Resource.LOG_GROUP.value, None
+        )
 
         # Logging styling
-        if instance_id is None:
+        if instance_id is None or log_group_name is None:
             self.output_mgr.log_output(  # type: ignore
                 agent_img_name=instance_name,
                 stage=alto.ui.StageEnum.AGENT_RUN,
@@ -974,6 +990,7 @@ class SSMProtocol(Protocol):
             ssm_client,
             alto.ui.StageEnum.AGENT_RUN,
             all_cmds,
+            log_group_name,
             instance_name,
             instance_id
         )
