@@ -826,6 +826,36 @@ class Ec2(Agent, AwsMixin):
                 symbol=Symbol.DELETED,
             )
 
+        # Log group
+        log_group_name_attr = current_resources.get(
+            ec2Resource.LOG_GROUP.value, None
+        )
+        if log_group_name_attr is None:
+            self.output_mgr.log_output(
+                agent_img_name=self.instance_name,
+                stage=StageEnum.AGENT_DELETE,
+                level="info",
+                msg="CloudWatch log group not found! If this is a mistake, then you may need to reset your resource data"  # noqa: E501
+            )
+        else:
+            self.output_mgr.step_starting(
+                "Deleting CloudWatch log group...",
+                is_substep=True
+            )
+            logs_client = boto3.client("logs")
+            logs_client.delete_log_group(logGroupName=log_group_name_attr)
+            log_log_group_name = f"{alto.ui.MAGENTA}{log_group_name_attr}{alto.ui.RESET}"  # noqa: E501
+            self.output_mgr.log_output(
+                agent_img_name=self.instance_name,
+                stage=StageEnum.AGENT_DELETE,
+                level="info",
+                msg=f"Deleting CloudWatch log group {log_log_group_name}",
+                renderable_type="Deleted CloudWatch log group",
+                is_step_completion=True,
+                is_substep=True,
+                symbol=Symbol.DELETED,
+            )
+
         self.output_mgr.step_completed("Deleted resources!")
         self.output_mgr.stop_live()
 

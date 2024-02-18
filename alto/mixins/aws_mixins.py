@@ -42,6 +42,7 @@ class ec2Resource(str, Enum):
     # For the SSM protocol
     ROLE_ARN = "role_arn"
     INSTANCE_PROFILE_ARN = "instance_profile_arn"
+    LOG_GROUP = "log_group"
 
 
 class ec2File(str, Enum):

@@ -39,33 +39,26 @@ class CommandStatus(str, Enum):
 
 class SSMProtocol(Protocol):
 
-    def create_cloudwatch_log_group_and_stream(self,
+    def get_log_group_arn(self,
         logs_client: Any,
         log_group_name: str,
-        log_stream_name: Optional[str] = None,
-    ):
-        # Check if the log group already exists. If it doesn't don't do anything
-        try:
-            logs_client.create_log_group(
-                logGroupName=log_group_name
-            )
-        except Exception as e:
-            if "already exists" not in str(e):
-                raise e
+    ) -> Optional[str]:
+        """
+        Get the ARN associated with `log_group_name`
 
-        # For the log stream — if it already exists, then delete and re-create. Each log
-        # stream should be associated with it's own `alto` run.
-        if log_stream_name is not None:
-            try:
-                logs_client.create_log_stream(
-                    logGroupName=log_group_name,
-                    logStreamName=log_stream_name,
-                )
-            except Exception as e:
-                if "already exists" not in str(e):
-                    raise e
-
-        return log_group_name, log_stream_name
+        args:
+            logs_client: Boto3 CloudWatch Logs client
+            log_group_name: name of log group
+        returns:
+            ARN associated with `log_group_name`
+        """
+        groups = logs_client.describe_log_groups(
+            logGroupNamePattern=log_group_name
+        )
+        for _g in groups['logGroups']:
+            if _g["logGroupName"] == log_group_name:
+                return str(_g["arn"])
+        return None
 
     def attach_policies_to_role(self,
         iam_client: Any,
@@ -289,7 +282,16 @@ class SSMProtocol(Protocol):
                     )
                     break
                 except ClientError as err:
-                    if err.response['Error']['Code'] == 'InvalidParameterValue':
+                    if err.response['Error']['Code'] == 'IncorrectInstanceState':
+                        log_pending_status = f"{alto.ui.YELLOW}pending{alto.ui.RESET}"
+                        self.output_mgr.log_output(
+                            agent_img_name=instance_name,
+                            stage=alto.ui.StageEnum.AGENT_BUILD,
+                            level="info",
+                            msg=f"Instance {log_instance_id_template.format(instance_id=instance_id)} is {log_pending_status}... checking again in 5 seconds"  # noqa: E501
+                        )
+                        time.sleep(5)
+                    elif err.response['Error']['Code'] == 'InvalidParameterValue':
                         self.output_mgr.log_output(
                             agent_img_name=instance_name,
                             stage=alto.ui.StageEnum.AGENT_BUILD,
@@ -297,6 +299,8 @@ class SSMProtocol(Protocol):
                             msg="The EC2 client did not find the profile yet...wait 5 seconds and then try again",  # noqa: E501
                         )
                         time.sleep(5)
+                    else:
+                        raise
 
             # Log
             self.output_mgr.log_output(
@@ -362,6 +366,41 @@ class SSMProtocol(Protocol):
             }
         )
 
+        # Create log group
+        log_group_name = f"{instance_name}-logs"
+        self.output_mgr.step_starting(
+            "Creating CloudWatch log group",
+            is_substep=True
+        )
+        if current_resources.get(ec2Resource.LOG_GROUP, None) is None:
+            logs_client = boto3.client("logs")
+            logs_client.create_log_group(
+                logGroupName=log_group_name
+            )
+            log_log_group_name = f"{alto.ui.MAGENTA}{log_group_name}{alto.ui.RESET}"
+            self.output_mgr.log_output(
+                agent_img_name=instance_name,
+                stage=alto.ui.StageEnum.AGENT_BUILD,
+                level="info",
+                msg=f"Created CloudWatch log group {log_log_group_name}",
+                renderable_type="Created CloudWatch log group",
+                is_step_completion=True,
+                is_substep=True
+            )
+        else:
+            log_group_name = current_resources[ec2Resource.LOG_GROUP]
+            self.output_mgr.log_output(
+                agent_img_name=instance_name,
+                stage=alto.ui.StageEnum.AGENT_BUILD,
+                level="info",
+                msg=f"Using existing CloudWatch log group {alto.ui.MAGENTA}{log_group_name}{alto.ui.RESET}",  # noqa: E501
+                renderable_type="Using existing CloudWatch log group",
+                is_step_completion=True,
+                is_substep=True
+            )
+        self.resource_data["resources"].update(
+            {ec2Resource.LOG_GROUP.value: log_group_name}
+        )
         return self.resource_data
 
     def upload_file_or_directory_to_s3(self,
@@ -440,11 +479,76 @@ class SSMProtocol(Protocol):
             return "\n".join([x for x in split if x != ""])
         return msg
 
+    def _process_log_events(self,
+        logs_client: Any,
+        instance_name: str,
+        log_group_arn: str,
+        log_stream_name: str,
+        stage: alto.ui.StageEnum,
+        ssm_client: Optional[Any] = None,
+        instance_id: Optional[str] = None,
+        command_id: Optional[str] = None,
+    ):
+        # Remove the final asterisk from the ARN, if it exists
+        if log_group_arn[-1] == "*":
+            log_group_arn = log_group_arn[:-1]
+
+        # Start a live tail
+        response = logs_client.start_live_tail(
+            logGroupIdentifiers=[log_group_arn],
+            logStreamNames=[log_stream_name]
+        )
+        event_stream = response['responseStream']
+
+        # Handle the events streamed back in the response
+        for event in event_stream:
+            # If the user passed a command, then check if it has failed
+            if command_id and instance_id:
+                assert ssm_client is not None
+                status = ssm_client.get_command_invocation(
+                    CommandId=command_id,
+                    InstanceId=instance_id,
+                )["Status"]
+                if status in [cs.value for cs in CommandStatus]:
+                    event_stream.close()
+                    break
+
+            # Handle when session is started
+            if 'sessionStart' in event:
+                command_id_log = f"{alto.ui.MAGENTA}{command_id}{alto.ui.RESET}"
+                self.output_mgr.log_output(
+                    agent_img_name=instance_name,
+                    stage=stage,
+                    level="info",
+                    msg=f"Streaming logs from command ID {command_id_log}",
+                )
+
+            # Handle when log event is given in a session update
+            elif 'sessionUpdate' in event:
+                log_events = event['sessionUpdate']['sessionResults']
+                for log_event in log_events:
+                    msg = log_event["message"]
+                    for line in re.split(r'[\n\r]', msg):
+                        if line == "":
+                            continue
+                        self.output_mgr.log_output(
+                            agent_img_name=instance_name,
+                            stage=stage,
+                            level="info",
+                            msg=self._process_log_msg(line),
+                            renderable_type=f"[dodger_blue2]{self._process_log_msg(line)}[/dodger_blue2]" if stage == alto.ui.StageEnum.AGENT_RUN else None,  # noqa
+                            is_step_completion=False,
+                        )
+            else:
+                # On-stream exceptions are captured here
+                raise RuntimeError(str(event))
+        return response
+
     def stream_logs(self,
         instance_name: str,
         stage: alto.ui.StageEnum,
         logs_client: Any,
-        log_group_name: str,
+        log_group_arn: str,
         log_stream_name: str,
         ssm_client: Optional[Any] = None,
         instance_id: Optional[str] = None,
@@ -457,38 +561,27 @@ class SSMProtocol(Protocol):
             instance_name: name of EC2 instance for which we are streaming logs
             stage: Agent stage
             logs_client: CloudWatch Logs client
-            log_group_name: log group name
+            log_group_arn: log group ARN
             log_stream_name: log stream name containing log events
+            ssm_client: AWS Systems Manager client
             instance_id: instance to which the command is sent
             command_id: command ID. If `None`, then the user is streaming events from a
                 failed command
         returns:
             None
         """
-        flag_command_done: bool = False
-
-        # Get the initial event
         while True:
             try:
-                log_events_resp = logs_client.get_log_events(
-                    logGroupName=log_group_name,
-                    logStreamName=log_stream_name,
+                self._process_log_events(
+                    logs_client,
+                    instance_name,
+                    log_group_arn,
+                    log_stream_name,
+                    stage,
+                    ssm_client,
+                    instance_id,
+                    command_id,
                 )
-
-                # Log the current event
-                for ev in log_events_resp["events"]:
-                    msg = ev["message"]
-                    for line in re.split(r'[\n\r]', msg):
-                        if line == "":
-                            continue
-                        self.output_mgr.log_output(
-                            agent_img_name=instance_name,
-                            stage=stage,
-                            level="info",
-                            msg=self._process_log_msg(line),
-                            renderable_type=f"[dodger_blue2]{self._process_log_msg(line)}[/dodger_blue2]" if stage == alto.ui.StageEnum.AGENT_RUN else None,  # noqa
-                            is_step_completion=False,
-                        )
                 break
             except Exception as e:
                 if "ResourceNotFoundException" in str(e):
@@ -500,51 +593,18 @@ class SSMProtocol(Protocol):
                             InstanceId=instance_id,
                         )["Status"]
                         if status in [cs.value for cs in CommandStatus]:
-                            flag_command_done = True
                             break
-
-                    # Otherwise, check for the log stream again in 5 seconds.
                     else:
+                        # Otherwise, check for the log stream again in 5 seconds.
                         self.output_mgr.log_output(
                             agent_img_name=instance_name,
                             stage=stage,
                             level="info",
                             msg="Log stream doesn't exist yet...wait 5 seconds and try again"  # noqa: E501
                         )
-                        time.sleep(5)
+                    time.sleep(5)
                 else:
                     raise e
-
-        if flag_command_done:
-            return None
-
-        # Keep retrieving and processing new log events
-        while 'nextForwardToken' in log_events_resp:
-            curr_token = log_events_resp["nextForwardToken"]
-            log_events_resp = logs_client.get_log_events(
-                logGroupName=log_group_name,
-                logStreamName=log_stream_name,
-                nextToken=curr_token
-            )
-            next_token = log_events_resp["nextForwardToken"]
-            if curr_token == next_token:
-                break
-            for ev in log_events_resp["events"]:
-                msg = ev["message"]
-                for line in re.split(r'[\n\r]', msg):
-                    if line == "":
-                        continue
-                    self.output_mgr.log_output(
-                        agent_img_name=instance_name,
-                        stage=stage,
-                        level="info",
-                        msg=self._process_log_msg(line),
-                        renderable_type=f"[dodger_blue2]{self._process_log_msg(line)}[/dodger_blue2]" if stage == alto.ui.StageEnum.AGENT_RUN else None,  # noqa
-                        is_step_completion=False,
-                    )
-
-            # Add a delay to avoid rate limiting
-            time.sleep(1)
         return None
 
     def send_command_and_stream_logs(self,
@@ -554,15 +614,24 @@ class SSMProtocol(Protocol):
         instance_name: str,
         instance_id: str,
     ) -> CommandStatus:
+        # Counter — initialize to 0. Sometimes, AWS doesn't correctly associate our
+        # instance profile to our instance. In this case, we should fail after 60
+        # seconds instead of creating an endless loop.
+        counter: int = 0
+
         # Initialize our status variable
         status = None
 
         # Create a new log group for the command
+        log_group_name = self.resource_data["resources"][ec2Resource.LOG_GROUP]
         logs_client = boto3.client("logs")
-        self.create_cloudwatch_log_group_and_stream(
-            logs_client,
-            log_group_name=instance_name
-        )
+        while True:
+            log_group_arn = self.get_log_group_arn(
+                logs_client,
+                log_group_name=log_group_name,
+            )
+            if log_group_arn:
+                break
 
         # Because of the race condition, retry sending the command until it's
         # successfully sent.
@@ -573,7 +642,7 @@ class SSMProtocol(Protocol):
                     DocumentName="AWS-RunShellScript",
                     Parameters={'commands': cmd},
                     CloudWatchOutputConfig={
-                        'CloudWatchLogGroupName': instance_name,
+                        'CloudWatchLogGroupName': log_group_name,
                         'CloudWatchOutputEnabled': True
                     },
                 )
@@ -598,7 +667,7 @@ class SSMProtocol(Protocol):
                     instance_name,
                     stage,
                     logs_client,
-                    instance_name,
+                    log_group_arn,
                     stdout_stream,
                     ssm_client,
                     instance_id,
@@ -608,7 +677,7 @@ class SSMProtocol(Protocol):
                     instance_name,
                     stage,
                     logs_client,
-                    instance_name,
+                    log_group_arn,
                     stderr_stream,
                     ssm_client,
                     instance_id,
@@ -625,13 +694,17 @@ class SSMProtocol(Protocol):
 
             except Exception as e:
                 if "InvalidInstanceId" in str(e):
-                    self.output_mgr.log_output(
-                        agent_img_name=instance_name,
-                        stage=stage,
-                        level="info",
-                        msg="SSM client did not receive command...wait 5 seconds and try again"  # noqa: E501
-                    )
-                    time.sleep(5)
+                    if counter >= 30:
+                        raise
+                    else:
+                        self.output_mgr.log_output(
+                            agent_img_name=instance_name,
+                            stage=stage,
+                            level="info",
+                            msg="SSM client did not receive command...wait 5 seconds and try again"  # noqa: E501
+                        )
+                        counter += 5
+                        time.sleep(5)
                 else:
                     raise
 
