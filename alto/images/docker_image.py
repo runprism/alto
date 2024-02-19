@@ -48,17 +48,9 @@ logger = logging.getLogger(DEFAULT_LOGGER_NAME)
 
 class Docker(BaseImage, ConfigMixin):
 
-    # Place server URL and client inside the class definition
-    import docker
-    SERVER_URL = os.environ.get("__ALTO_DOCKER_SERVER_URL__", None)
-    if SERVER_URL is not None:
-        CLIENT = docker.from_env(environment={
-            "DOCKER_HOST": SERVER_URL
-        })
-    else:
-        CLIENT = docker.from_env()
-
-    # Other class attributes
+    # Class
+    SERVER_URL: str | None
+    CLIENT: Any
     image_version: Optional[str] = None
 
     def __init__(self,
@@ -67,7 +59,16 @@ class Docker(BaseImage, ConfigMixin):
         image_conf: Dict[str, Any],
         output_mgr: OutputManager
     ):
+        # Place server URL and client inside the class definition
         import docker
+        self.SERVER_URL = os.environ.get("__ALTO_DOCKER_SERVER_URL__", None)
+        if self.SERVER_URL is not None:
+            self.CLIENT = docker.from_env(environment={
+                "DOCKER_HOST": self.SERVER_URL
+            })
+        else:
+            self.CLIENT = docker.from_env()
+
         BaseImage.__init__(
             self, alto_wkdir, image_name, image_conf, output_mgr
         )
