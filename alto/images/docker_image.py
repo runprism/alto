@@ -7,7 +7,6 @@ Docker Image.
 ###########
 
 # Standard library imports
-import docker
 import os
 from pathlib import Path
 import re
@@ -42,20 +41,6 @@ import logging
 logger = logging.getLogger(DEFAULT_LOGGER_NAME)
 
 
-#################
-# Docker client #
-#################
-
-# For testing
-SERVER_URL = os.environ.get("__ALTO_DOCKER_SERVER_URL__", None)
-if SERVER_URL is not None:
-    client = docker.from_env(environment={
-        "DOCKER_HOST": SERVER_URL
-    })
-else:
-    client = docker.from_env()
-
-
 ####################
 # Class definition #
 ####################
@@ -63,12 +48,26 @@ else:
 
 class Docker(BaseImage, ConfigMixin):
 
+    # Place server URL and client inside the class definition
+    import docker
+    SERVER_URL = os.environ.get("__ALTO_DOCKER_SERVER_URL__", None)
+    if SERVER_URL is not None:
+        CLIENT = docker.from_env(environment={
+            "DOCKER_HOST": SERVER_URL
+        })
+    else:
+        CLIENT = docker.from_env()
+
+    # Other class attributes
+    image_version: Optional[str] = None
+
     def __init__(self,
         alto_wkdir: Path,
         image_name: str,
         image_conf: Dict[str, Any],
         output_mgr: OutputManager
     ):
+        import docker
         BaseImage.__init__(
             self, alto_wkdir, image_name, image_conf, output_mgr
         )
@@ -76,18 +75,17 @@ class Docker(BaseImage, ConfigMixin):
         # Image name, version
         alto_project_name = self.alto_wkdir.name.replace("_", "-")
         self.image_name = f"{alto_project_name}-{self.image_name}"
-        self.image_version: Optional[str] = None
 
         # Create a low-level API client. We need this to capture the logs when
         # actually building the image.
-        if SERVER_URL is not None:
-            self.build_client = docker.APIClient(base_url=SERVER_URL)
+        if self.SERVER_URL is not None:
+            self.build_client = docker.APIClient(base_url=self.SERVER_URL)
         else:
             self.build_client = docker.APIClient(base_url=self.server_url)
 
         # Iterate through current images and get all images that resemble our image
         # name.
-        img_list = client.images.list()
+        img_list = self.CLIENT.images.list()
         self.prev_images = []
         self.prev_img_names: List[str] = []
         self.prev_img_versions: List[str] = []
@@ -197,10 +195,10 @@ class Docker(BaseImage, ConfigMixin):
         else:
             self.server_url = ""
 
-    def prepare_copy_commands(self,
+    def prepare_mount_copy_cmds(self,
         docker_context_path: Path,
         alto_wkdir: Path,
-        additional_paths: List[str],
+        mounts: List[str],
     ) -> Dict[Union[str, Path], str]:
         """
         Prepare the `COPY` statements for the Dockerfile. Note that we don't store our
@@ -211,7 +209,7 @@ class Docker(BaseImage, ConfigMixin):
         args:
             alto_wkdir: Alto working directory
             entrypoint: agent's entrypoint
-            additional_paths: additional paths to copy into your infrastructure
+            mounts: additional paths to copy into your infrastructure
         returns:
             list of COPY statements
         """
@@ -224,7 +222,7 @@ class Docker(BaseImage, ConfigMixin):
         copy_commands: Dict[Union[str, Path], str] = {}
 
         # Flatten the list of paths
-        all_paths = [alto_wkdir] + additional_paths
+        all_paths = [alto_wkdir] + mounts
         flattened_paths = paths_flattener(all_paths)
 
         # Copy directories into tmpdir
@@ -233,14 +231,20 @@ class Docker(BaseImage, ConfigMixin):
                 continue
 
             # Copy
-            shutil.copytree(
-                src=full,
-                dst=docker_context_path / flat,
-                dirs_exist_ok=True,
-                ignore=shutil.ignore_patterns(
-                    *[docker_context_path.name, "requirements"]
+            if Path(full).is_dir():
+                shutil.copytree(
+                    src=full,
+                    dst=docker_context_path / flat,
+                    dirs_exist_ok=True,
+                    ignore=shutil.ignore_patterns(
+                        *[docker_context_path.name, "requirements"]
+                    )
                 )
-            )
+            else:
+                shutil.copy2(
+                    src=full,
+                    dst=docker_context_path / flat,
+                )
 
             # Add copy command
             copy_commands[flat] = f"COPY {str(flat)}/ ./{str(flat)}"
@@ -293,17 +297,21 @@ class Docker(BaseImage, ConfigMixin):
             image_build_commands_dockerfile = "\n".join(processed_image_build_cmds)
 
             # Copy commands
-            additional_paths = self.parse_additional_paths(agent_conf)
-            copy_commands = self.prepare_copy_commands(
-                docker_context_path, self.alto_wkdir, additional_paths
+            mounts = self.parse_mounts(agent_conf)
+            mount_cmds = self.prepare_mount_copy_cmds(
+                docker_context_path, self.alto_wkdir, mounts
             )
-            copy_commands_dockerfile = "\n".join([
-                str(cmd) for _, cmd in copy_commands.items()
+            mount_cmds_dockerfile = "\n".join([
+                str(cmd) for _, cmd in mount_cmds.items()
             ])
+
+            # Flattened wkdir. Save this as an attribute so we can access it using a
+            # class instance.
+            alto_wkdir_name = list(mount_cmds.keys())[0]
+            self.workdir = alto_wkdir_name
 
             # Copy requirements into the docker context. If the requirements are not
             # specified, create a blank requirements.txt file in the Docker context
-
             if str(requirements_relative_path) != "":
                 shutil.copyfile(
                     src=(self.alto_wkdir / requirements_relative_path).resolve(),
@@ -326,8 +334,8 @@ class Docker(BaseImage, ConfigMixin):
                 base_image=jinja_template_overrides.get("base_image", self.base),
                 image_build_cmds=jinja_template_overrides.get("image_build_cmds", image_build_commands_dockerfile),  # noqa
                 requirements_txt=jinja_template_overrides.get("requirements_txt", requirements_relative_str),  # noqa
-                alto_wkdir_name=jinja_template_overrides.get("alto_wkdir_name", self.alto_wkdir.name),  # noqa
-                copy_commands=jinja_template_overrides.get("copy_commands", copy_commands_dockerfile),  # noqa
+                alto_wkdir_name=jinja_template_overrides.get("alto_wkdir_name", alto_wkdir_name),  # noqa
+                mount_cmds=jinja_template_overrides.get("mount_cmds", mount_cmds_dockerfile),  # noqa
                 env=jinja_template_overrides.get("env", env_dockerfile),
                 cmd=jinja_template_overrides.get("cmd", entrypoint.build_command()),  # noqa
             )
@@ -371,7 +379,7 @@ class Docker(BaseImage, ConfigMixin):
             self.prev_images = list(set(self.prev_images))
             for img in self.prev_images:
                 try:
-                    client.images.remove(
+                    self.CLIENT.images.remove(
                         image=img,
                         force=True
                     )
@@ -385,7 +393,7 @@ class Docker(BaseImage, ConfigMixin):
 
         # If nothing has gone wrong, then we should be able to get the image
         try:
-            _ = client.images.get(
+            _ = self.CLIENT.images.get(
                 name=f"{self.image_name}:{new_img_version}",
             )
         except Exception as e:
@@ -397,7 +405,7 @@ class Docker(BaseImage, ConfigMixin):
 
         # Push the image
         self.registry.push(
-            docker_client=client,
+            docker_client=self.CLIENT,
             image_name=self.image_name,
             image_tag=self.image_version
         )
@@ -409,7 +417,7 @@ class Docker(BaseImage, ConfigMixin):
         self.output_mgr.step_starting("[dodger_blue2]Deleting image[/dodger_blue2]")
 
         # Remove all images with the label "stage=intermediate"
-        images = client.images.list(
+        images = self.CLIENT.images.list(
             filters={"label": "stage=intermediate"}
         )
         for img in images:
@@ -417,7 +425,7 @@ class Docker(BaseImage, ConfigMixin):
                 for curr_tag in img.tags:
                     if self.image_name in curr_tag and self.image_version in curr_tag:
                         try:
-                            client.images.remove(
+                            self.CLIENT.images.remove(
                                 image=curr_tag,
                                 force=True,
                             )

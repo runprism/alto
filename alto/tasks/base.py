@@ -25,7 +25,7 @@ from alto.alto_logger import (
 from alto.entrypoints import (  # noqa
     MetaEntrypoint,
     BaseEntrypoint,
-    Project,
+    Script,
     Function,
     Jupyter,
 )
@@ -38,6 +38,7 @@ from alto.images import (  # noqa
     MetaImage,
     BaseImage,
 )
+from alto.images.docker_image import Docker  # noqa
 from alto.output import OutputManager
 
 
@@ -86,9 +87,9 @@ class BaseTask:
         self.check_conf(self.conf, self.name)
         self.confirm_matrix_conf_structure(self.conf)
         self.confirm_entrypoint_conf_structure(self.conf)
-        self.confirm_additional_paths_conf_structure(self.conf)
+        self.confirm_mounts_conf_structure(self.conf)
         self.confirm_image_conf_structure(self.conf)
-        self.conf = self.define_download_files(self.conf)
+        self.conf = self.define_artifacts(self.conf)
 
     def parse_conf_fpath(self,
         conf_fpath: Path
@@ -140,7 +141,7 @@ class BaseTask:
             ConfigurationKey("env", dict),
             ConfigurationKey("requirements", str),
             ConfigurationKey("post_build_cmds", list),
-            ConfigurationKey("download_files", list),
+            ConfigurationKey("artifacts", list),
         ]
         for _k in optional_keys:
             _check_optional_key_in_conf(_k, conf)
@@ -235,10 +236,6 @@ class BaseTask:
                     f"unrecognized image type `{image['type']}`"
                 )
 
-            # Import
-            if image["type"] == "docker":
-                from alto.images.docker_image import Docker  # noqa
-
             self.image = MetaImage.get_image(image["type"])(
                 alto_wkdir=self.alto_wkdir,
                 image_name=self.name,
@@ -249,46 +246,46 @@ class BaseTask:
         else:
             self.image = None
 
-    def confirm_additional_paths_conf_structure(self,
+    def confirm_mounts_conf_structure(self,
         conf: Dict[str, Any]
     ):
         """
-        If the `additional_paths` section exists (remember, it's an optional key),
+        If the `mounts` section exists (remember, it's an optional key),
         confirm that it is properly structured
 
         args:
             conf: agent configuration
         returns:
-            True if the `additional_paths` section doesn't exist or exists and is
+            True if the `mounts` section doesn't exist or exists and is
             properly structured
         raises:
-            ValueError() if the `additional_paths` section is not properly structured
+            ValueError() if the `mounts` section is not properly structured
         """
-        optional_key = ConfigurationKey("additional_paths", list)
+        optional_key = ConfigurationKey("mounts", list)
         _check_optional_key_in_conf(optional_key, conf)
         return True
 
-    def define_download_files(self,
+    def define_artifacts(self,
         conf: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Define the files to be downloaded from the agent after the agent has
-        successfully run. This will be specified within the `download_files` key in the
+        successfully run. This will be specified within the `artifacts` key in the
         agent configuration.
 
-        For certain entrypoints, we use this function to augment the `download_files`
+        For certain entrypoints, we use this function to augment the `artifacts`
         that the user specifies, if any.
 
         args:
             conf: agent configuration
         returns:
-            configuration with augmented `download_files`
+            configuration with augmented `artifacts`
         """
         # We run this function *after* checking the agent configuration and entrypoint
         # configuration.
-        download_files = []
-        if "download_files" in conf.keys():
-            download_files = conf["download_files"]
+        artifacts = []
+        if "artifacts" in conf.keys():
+            artifacts = conf["artifacts"]
 
         # At this point, we should know what our entrypoint type is
         if not hasattr(self, "entrypoint"):
@@ -301,10 +298,10 @@ class BaseTask:
 
             # We should donwload the executed notebook. The path of the executed
             # notebook will be relative to `src`.
-            output_path = Path(ep.src) / ep.output_path
-            if str(output_path) not in download_files:
-                download_files.append(str(output_path))
+            output_path = Path(self.alto_wkdir) / ep.src / ep.output_path
+            if str(output_path) not in artifacts:
+                artifacts.append(str(output_path))
 
         # Update configuration
-        conf["download_files"] = download_files
+        conf["artifacts"] = artifacts
         return conf

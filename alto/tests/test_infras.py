@@ -65,6 +65,8 @@ def test_normal_ec2_infra():
         "instance_type": "c1.medium",
         "ami_image": "ami-01c647eace872fc02",
         "python_version": "",
+        "protocol": "ssh",
+        "instance_profile": None,
     }
     assert infra.infra_conf == expected_conf
 

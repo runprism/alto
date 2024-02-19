@@ -13,7 +13,6 @@ from alto.entrypoints import (  # noqa
     BaseEntrypoint,
     Script as ScriptEntrypoint,
     Function as FunctionEntrypoint,
-    Project as ProjectEntrypoint,
     Jupyter as JupyterEntrypoint,
 )
 from alto.tests.entrypoints import (  # noqa

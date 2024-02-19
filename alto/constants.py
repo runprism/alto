@@ -6,6 +6,7 @@ Constants used throughout the Alto project
 import os
 from pathlib import Path
 import sys
+from typing import Literal
 
 # Version
 VERSION = "0.0.7"
@@ -46,13 +47,12 @@ SUPPORTED_IMAGE_REGISTRIES = [
 SUPPORTED_ENTRYPOINTS = [
     "script",
     "function",
-    "project",
     "jupyter",
 ]
 
 
 # EC2 supported instance types
-EC2_SUPPORTED_INSTANCE_TYPES = [
+EC2_INSTANCE_TYPE = Literal[
     't1.micro',
     't2.nano',
     't2.micro',
@@ -219,6 +219,12 @@ EC2_SUPPORTED_INSTANCE_TYPES = [
     'u-6tb1.metal',
     'u-9tb1.metal',
     'u-12tb1.metal',
+]
+
+
+SUPPORTED_EC2_PROTOCOLS = [
+    "ssh",
+    "ssm",
 ]
 
 

@@ -6,7 +6,7 @@ LABEL stage=intermediate
 COPY {{ requirements_txt }} ./requirements.txt
 RUN pip install --upgrade pip && pip install -r ./{{ requirements_txt }}
 
-{{ copy_commands }}
+{{ mount_cmds }}
 WORKDIR ./{{ alto_wkdir_name }}
 
 {{ env }}

@@ -31,7 +31,7 @@ def _create_task(path: Path):
 # Tests
 def test_normal_conf():
     """
-    If `additional_paths` is not a list, throw an error
+    If `mounts` is not a list, throw an error
     """
     task = _create_task(path=(CONFs / 'normal_conf.yml'))
     task.check()
@@ -43,6 +43,8 @@ def test_normal_conf():
             "instance_type": "t2.micro",
             "ami_image": "ami-01c647eace872fc02",
             "python_version": "",
+            "protocol": "ssh",
+            "instance_profile": None,
         },
         "requirements": "requirements.txt",
         "entrypoint": {
@@ -53,28 +55,28 @@ def test_normal_conf():
                 "value": "hello world",
             }
         },
-        "additional_paths": [
+        "mounts": [
             str(CONFs)
         ],
         "env": {
             "ENV_VAR_1": "VALUE1",
             "ENV_VAR_2": "VALUE2",
         },
-        "download_files": [],
+        "artifacts": [],
     }
     assert expected_conf == task.conf
 
 
-def test_bad_yml_additional_paths():
+def test_bad_yml_mounts():
     """
-    If `additional_paths` is not a list, throw an error
+    If `mounts` is not a list, throw an error
     """
-    task = _create_task(path=(CONFs / 'bad_additional_paths.yml'))
+    task = _create_task(path=(CONFs / 'bad_mounts.yml'))
 
     # Run the check
     with pytest.raises(ValueError) as cm:
-        task.confirm_additional_paths_conf_structure(task.conf)
-    expected_msg = "`additional_paths` is not the correct type...should be a <class 'list'>"  # noqa: E501
+        task.confirm_mounts_conf_structure(task.conf)
+    expected_msg = "`mounts` is not the correct type...should be a <class 'list'>"  # noqa: E501
     assert expected_msg == str(cm.value)
 
 
@@ -185,6 +187,8 @@ def test_jupyter_entrypoint():
             "instance_type": "t2.micro",
             "ami_image": "ami-01c647eace872fc02",
             "python_version": "",
+            "protocol": "ssm",
+            "instance_profile": "dummy",
         },
         "requirements": "requirements.txt",
         "entrypoint": {
@@ -197,8 +201,8 @@ def test_jupyter_entrypoint():
             "ENV_VAR_1": "VALUE1",
             "ENV_VAR_2": "VALUE2",
         },
-        "download_files": [
-            "scripts/alto_nb_exec.ipynb",
+        "artifacts": [
+            str(CONFs / "scripts" / "alto_nb_exec.ipynb"),
         ],
     }
     assert expected_conf == task.conf

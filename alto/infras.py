@@ -5,7 +5,7 @@ configuration file.
 
 # Imports
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, get_args
 import re
 import requests
 
@@ -13,7 +13,8 @@ import requests
 from alto.constants import (
     DEFAULT_LOGGER_NAME,
     SUPPORTED_AGENTS,
-    EC2_SUPPORTED_INSTANCE_TYPES,
+    EC2_INSTANCE_TYPE,
+    SUPPORTED_EC2_PROTOCOLS,
 )
 from alto.utils import (
     ConfigurationKey,
@@ -71,12 +72,15 @@ class BaseInfra(metaclass=MetaInfra):
 
 class Ec2(BaseInfra):
     """
-    Ec2 infra. This is defined as an infra conf with `type` = ec2. Acceptable nested
+    EC2 infra. This is defined as an infra conf with `type` = ec2. Acceptable nested
     key-value pairs are:
 
         instance_type: the EC2 instance type. This defaults to t2.micro.
-        ami_image    : the Amazon machine image to use. This defaults to
-                       ami-0889a44b331db0194
+        ami_image: the Amazon machine image to use. This defaults to
+            ami-0889a44b331db0194
+        python_version: python version to install on the machine
+        protocol: either `ssh` or `ssm`
+        instance_profile: instance profile to use (for protocol `ssm` only)
     """
 
     def check_conf(self):
@@ -85,11 +89,13 @@ class Ec2(BaseInfra):
         """
         BaseInfra.check_conf(self)
 
-        # Check for the `instance_type` and `ami_image` keys
+        # Check for optional keys.
         keys = [
-            ConfigurationKey("instance_type", str, EC2_SUPPORTED_INSTANCE_TYPES),
+            ConfigurationKey("instance_type", str, list(get_args(EC2_INSTANCE_TYPE))),  # noqa
             ConfigurationKey("ami_image", str),
             ConfigurationKey("python_version", [str, int, float]),
+            ConfigurationKey("protocol", str, SUPPORTED_EC2_PROTOCOLS),
+            ConfigurationKey("instance_profile", str),
         ]
         for _k in keys:
             _check_optional_key_in_conf(_k, self.infra_conf)
@@ -105,6 +111,18 @@ class Ec2(BaseInfra):
             self.infra_conf["ami_image"] = "ami-01c647eace872fc02"
         elif self.infra_conf["ami_image"] is None:
             self.infra_conf["ami_image"] = "ami-01c647eace872fc02"
+
+        # If the protocol isn't specified, then default to SSH
+        if "protocol" not in self.infra_conf.keys():
+            self.infra_conf["protocol"] = "ssh"
+        elif self.infra_conf["protocol"] is None:
+            self.infra_conf["protocol"] = "ssh"
+
+        # Instance profile. We only need this for the `ssm` protocol
+        if self.infra_conf["protocol"] == "ssh":
+            self.infra_conf["instance_profile"] = None
+        elif "instance_profile" not in self.infra_conf.keys():
+            self.infra_conf["instance_profile"] = None
 
         # Python version
         self.infra_conf = self.define_python_version(self.infra_conf)

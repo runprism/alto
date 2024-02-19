@@ -104,14 +104,6 @@ class Script(BaseEntrypoint):
     pass
 
 
-class Project(BaseEntrypoint):
-    """
-    Project entrypoint. We need this so out MetaEntrypoint class can create the
-    appropriate child class based on the user's `type`.
-    """
-    pass
-
-
 class Function(BaseEntrypoint):
 
     def check_conf(self):

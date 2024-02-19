@@ -5,6 +5,7 @@ from our logging infrastructure, which is handled in `alto_logger.py`.
 
 # Imports
 import argparse
+from enum import Enum
 import logging
 import sys
 from typing import Optional, List
@@ -16,6 +17,13 @@ from rich.tree import Tree
 
 from alto.constants import DEFAULT_LOGGER_NAME
 from alto.ui import StageEnum
+
+
+class Symbol(str, Enum):
+    BUILD_SUCCESS = "[green]✓[/green]"
+    SUBSTEP_BUILD_SUCCESS = "🔨"
+    DELETED = "[red]✕[/red]"
+    SKIPPED = "[light_goldenrod1]≫[/light_goldenrod1]"
 
 
 class OutputManager:
@@ -127,7 +135,7 @@ class OutputManager:
     def step_completed(self,
         message: RenderableType,
         is_substep: bool = False,
-        symbol: Optional[str] = None,
+        symbol: Optional[Symbol] = None,
     ) -> None:
         """
         Returns the element to be rendered when a step is completed.
@@ -136,10 +144,8 @@ class OutputManager:
             message: message to log
             is_substep: boolean indicating whether step is a sub-step
         """
-        STEP_COMPLETED = "[green]✓[/green]"
-        SUBSTEP_COMPLETED = "🔨"
         if symbol is None:
-            symbol = SUBSTEP_COMPLETED if is_substep else STEP_COMPLETED
+            symbol = Symbol.SUBSTEP_BUILD_SUCCESS if is_substep else Symbol.BUILD_SUCCESS  # noqa
         msg = f"{symbol} {message}"
 
         # If we're in `verbose` mode, then don't do anything
@@ -172,15 +178,17 @@ class OutputManager:
             # We know that, in our tree, the labels are always spinners. Mypy doesn't
             # know this, so it throws an error
             lbl: Spinner = tree.label  # type: ignore
-            txt = lbl.text.__str__()
-            tree.label = f"[red]✕ Failed when {txt.lower().replace('...', '')}[/red]"  # noqa
+            txt = lbl.text.__str__().lower().replace("...", "")
+            txt = txt.replace("ec2", "EC2")
+            txt = txt.replace("iam", "IAM")
+            tree.label = f"[red]✕ Failed when {txt}[/red]"  # noqa
 
             # Skip the remaining tasks
             while len(self.current_renders_all) > 0:
                 curr_elt: Tree = self.current_renders_all.pop()
                 curr_lbl: Spinner = curr_elt.label  # type: ignore
                 curr_txt = curr_lbl.text.__str__()
-                curr_elt.label = f"[orange]➜[/orange] Skipped {curr_txt.lower().replace('...', '')}"  # noqa
+                curr_elt.label = f"{Symbol.SKIPPED} Skipped {curr_txt.lower().replace('...', '')}"  # noqa
 
         self.console.print(self.current_render)
         self.stop_live()
@@ -194,7 +202,7 @@ class OutputManager:
         renderable_type: Optional[RenderableType] = None,
         is_step_completion: bool = False,
         is_substep: bool = False,
-        symbol: Optional[str] = None,
+        symbol: Optional[Symbol] = None,
     ) -> None:
         """
         Log message to stdout

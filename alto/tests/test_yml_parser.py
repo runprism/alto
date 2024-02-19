@@ -16,14 +16,14 @@ from alto.parsers.yml import YmlParser
 EC2_EXAMPLES_DIR = EXAMPLES_DIR / 'ec2'
 INTEGRATION_TEST_DIR = Path(__file__).parent / 'integration'
 EC2_EXAMPLES = [
-    EC2_EXAMPLES_DIR / 'additional_paths.yml',
+    EC2_EXAMPLES_DIR / 'mounts.yml',
     EC2_EXAMPLES_DIR / 'basic_function.yml',
     EC2_EXAMPLES_DIR / 'basic_project.yml',
     EC2_EXAMPLES_DIR / 'basic_script.yml',
     EC2_EXAMPLES_DIR / 'env_vars.yml',
     EC2_EXAMPLES_DIR / 'basic_jupyter.yml',
-    EC2_EXAMPLES_DIR / 'download_files.yml',
-    INTEGRATION_TEST_DIR / 'download_files' / 'alto.yml'
+    EC2_EXAMPLES_DIR / 'artifacts.yml',
+    INTEGRATION_TEST_DIR / 'artifacts' / 'alto.yml'
 ]
 
 
@@ -53,7 +53,7 @@ def test_yml_parser():
                     "kwarg1": "value1",
                 }
             },
-            "additional_paths": [
+            "mounts": [
                 str(EC2_EXAMPLES_DIR)
             ]
         }
@@ -154,7 +154,7 @@ def test_yml_parser():
                 "type": "script",
                 "cmd": "python <script name>.py --dim1 DIM1 --dim2 DIM2"
             },
-            "download_files": ["file1.txt", "file2.txt"]
+            "artifacts": ["file1.txt", "file2.txt"]
         }
     }
 
@@ -167,9 +167,15 @@ def test_yml_parser():
             },
             "entrypoint": {
                 "type": "script",
-                "cmd": f"python main.py --output-name test_download_files --python-version {PYTHON_VERSION} --platform {PLATFORM}"  # noqa: E501
+                "cmd": f"python main.py --output-name test_artifacts --python-version {PYTHON_VERSION} --platform {PLATFORM}"  # noqa: E501
             },
-            "download_files": [f'{PLATFORM}_{PYTHON_VERSION.replace(".", "")}_test_download_files.txt']  # noqa: E501
+            "mounts": [
+                str(INTEGRATION_TEST_DIR / 'utils.py'),
+                "test_mount.txt",
+            ],
+            "artifacts": [
+                f'{PLATFORM}_{PYTHON_VERSION.replace(".", "")}_test_artifacts.txt'
+            ]
         }
     }
 

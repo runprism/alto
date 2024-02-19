@@ -55,7 +55,7 @@ def test_normal_init_iterations():
     Test the output of a function deployment
     """
     for infra in ["ec2"]:
-        for ep in ["script", "project", "jupyter", "function"]:
+        for ep in ["script", "jupyter", "function"]:
             actual_template = _init_test_case(
                 _type=infra,
                 _file=f"normal_{infra}_{ep}.yml",

@@ -7,6 +7,6 @@ my_cloud_agent:
   entrypoint:
     type: script
     cmd: python <script name>.py --dim1 DIM1 --dim2 DIM2
-  download_files:
+  artifacts:
     - file1.txt
     - file2.txt
