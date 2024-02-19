@@ -9,7 +9,7 @@ import sys
 from typing import Literal
 
 # Version
-VERSION = "0.0.7"
+VERSION = "0.0.8"
 
 
 # Alto internal folder
