@@ -31,6 +31,7 @@ from alto.utils import (
     _check_optional_key_in_conf
 )
 from alto.output import OutputManager
+from alto.utils import requires_dependencies
 
 
 ##########
@@ -53,6 +54,10 @@ class Docker(BaseImage, ConfigMixin):
     CLIENT: Any
     image_version: Optional[str] = None
 
+    @requires_dependencies(
+        "docker",
+        "docker",
+    )
     def __init__(self,
         alto_wkdir: Path,
         image_name: str,
